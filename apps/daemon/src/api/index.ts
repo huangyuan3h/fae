@@ -5,6 +5,7 @@ import { authRoutes } from "./auth";
 import { agentRoutes } from "./agents";
 import { chatRoutes } from "./chat";
 import { skillRoutes } from "./skills";
+import { settingsRoutes } from "./settings";
 import { requireAuth } from "../utils/auth";
 import type { AppBindings } from "../types";
 
@@ -19,6 +20,7 @@ export function createApiRouter(): Hono<AppBindings> {
   protectedApi.route("/agents", agentRoutes);
   protectedApi.route("/chat", chatRoutes);
   protectedApi.route("/skills", skillRoutes);
+  protectedApi.route("/settings", settingsRoutes);
   api.route("/", protectedApi);
 
   api.onError((error, c) => {

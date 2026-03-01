@@ -26,5 +26,11 @@ CREATE TABLE IF NOT EXISTS sessions (
   expires_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at INTEGER DEFAULT (strftime('%s', 'now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_messages_agent_created_at
 ON messages (agent_id, created_at);

@@ -30,6 +30,30 @@ export async function fetchAgents(sessionToken: string) {
   return response.json();
 }
 
+export async function getOllamaSettings(sessionToken: string) {
+  const response = await fetch(`${API_BASE}/api/settings/ollama`, {
+    headers: {
+      Authorization: `Bearer ${sessionToken}`
+    }
+  });
+  return response.json();
+}
+
+export async function updateOllamaSettings(params: {
+  sessionToken: string;
+  baseUrl: string;
+}) {
+  const response = await fetch(`${API_BASE}/api/settings/ollama`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${params.sessionToken}`
+    },
+    body: JSON.stringify({ baseUrl: params.baseUrl })
+  });
+  return response.json();
+}
+
 export async function streamChat(params: {
   sessionToken: string;
   agentId: string;

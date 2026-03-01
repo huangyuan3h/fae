@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { fetchAgents, streamChat } from "../../lib/api";
 
 const SESSION_KEY = "fae_session_token";
@@ -104,6 +105,9 @@ export default function ChatPage() {
   return (
     <main>
       <h1>fae Chat</h1>
+      <p>
+        <Link href="/settings">Go to Settings</Link>
+      </p>
       <div style={{ display: "grid", gap: 12 }}>
         <label>
           Agent

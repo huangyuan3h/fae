@@ -56,12 +56,21 @@ async function bootstrap(): Promise<void> {
   });
 
   const app = new Hono<AppBindings>();
+  const allowedOrigins = new Set([
+    "http://localhost:3000",
+    "http://127.0.0.1:3000"
+  ]);
   app.use(
     "*",
     cors({
-      origin: "http://localhost:3000",
+      origin: (origin) => {
+        if (!origin) {
+          return "";
+        }
+        return allowedOrigins.has(origin) ? origin : "";
+      },
       allowHeaders: ["Content-Type", "Authorization"],
-      allowMethods: ["GET", "POST", "OPTIONS"]
+      allowMethods: ["GET", "POST", "PUT", "OPTIONS"]
     })
   );
 

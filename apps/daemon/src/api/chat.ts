@@ -40,9 +40,13 @@ chatRoutes.post("/", async (c) => {
     "INSERT INTO messages (id, agent_id, role, content) VALUES (?, ?, ?, ?)"
   ).run(randomUUID(), payload.agentId, "user", payload.message);
 
+  const ollamaBaseUrlSetting = db
+    .prepare<{ value: string }>("SELECT value FROM settings WHERE key = ?")
+    .get("ollama.baseUrl");
+
   const llmResult = streamText({
     // NOTE: ollama-ai-provider currently exposes a model type that lags latest ai SDK typings.
-    model: getModel(agent.model) as never,
+    model: getModel(agent.model, ollamaBaseUrlSetting?.value) as never,
     system: agent.system_prompt ?? "You are a helpful local AI assistant.",
     messages: [{ role: "user", content: payload.message }]
   });
