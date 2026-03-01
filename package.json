@@ -1,0 +1,16 @@
+{
+  "name": "fae",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "bun run --filter '@fae/*' dev",
+    "dev:daemon": "bun run --cwd apps/daemon dev",
+    "dev:web": "bun run --cwd apps/web dev",
+    "build:daemon": "bun run --cwd apps/daemon build",
+    "build:web": "bun run --cwd apps/web build",
+    "typecheck": "bun run --cwd apps/daemon typecheck && bun run --cwd apps/web typecheck"
+  }
+}

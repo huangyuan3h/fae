@@ -1,0 +1,22 @@
+{
+  "name": "@fae/daemon",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/daemon.ts",
+    "build": "bun build src/daemon.ts --compile --minify --outfile ../../dist/fae-daemon",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ai": "latest",
+    "hono": "latest",
+    "ollama-ai-provider": "latest",
+    "pino": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "bun-types": "latest",
+    "typescript": "latest"
+  }
+}
