@@ -2,33 +2,84 @@ const daemonPort = process.env.NEXT_PUBLIC_DAEMON_PORT ?? "8787";
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? `http://127.0.0.1:${daemonPort}`;
 
-export interface LoginResponse {
+interface ApiErrorShape {
+  code?: string;
+  message?: string;
+}
+
+interface ApiResponse<T> {
   ok: boolean;
-  data?: {
-    sessionToken: string;
-  };
-  error?: {
-    code: string;
-    message: string;
-  };
+  data?: T;
+  error?: ApiErrorShape;
 }
 
-export async function loginWithStartupToken(token: string): Promise<LoginResponse> {
-  const response = await fetch(`${API_BASE}/api/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token })
+async function requestJson<T>(
+  path: string,
+  init: RequestInit,
+  sessionToken?: string
+): Promise<ApiResponse<T>> {
+  const headers = new Headers(init.headers);
+  headers.set("Content-Type", "application/json");
+
+  if (sessionToken) {
+    headers.set("Authorization", `Bearer ${sessionToken}`);
+  }
+
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers
   });
-  return (await response.json()) as LoginResponse;
-}
 
-export async function fetchAgents(sessionToken: string) {
-  const response = await fetch(`${API_BASE}/api/agents`, {
-    headers: {
-      Authorization: `Bearer ${sessionToken}`
+  let parsed: ApiResponse<T> | null = null;
+  try {
+    parsed = (await response.json()) as ApiResponse<T>;
+  } catch {
+    if (!response.ok) {
+      throw new Error(`Request failed (${response.status})`);
     }
-  });
-  return response.json();
+    throw new Error("Unexpected non-JSON response");
+  }
+
+  if (!response.ok) {
+    const message = parsed.error?.message ?? `Request failed (${response.status})`;
+    throw new Error(message);
+  }
+
+  return parsed;
+}
+
+export interface AgentItem {
+  id: string;
+  name: string;
+  model?: string;
+}
+
+export async function loginWithStartupToken(token: string): Promise<string> {
+  const result = await requestJson<{ sessionToken: string }>(
+    "/api/auth/login",
+    {
+      method: "POST",
+      body: JSON.stringify({ token })
+    }
+  );
+
+  if (!result.ok || !result.data?.sessionToken) {
+    throw new Error(result.error?.message ?? "Login failed");
+  }
+
+  return result.data.sessionToken;
+}
+
+export async function fetchAgents(sessionToken: string): Promise<AgentItem[]> {
+  const result = await requestJson<AgentItem[]>(
+    "/api/agents",
+    {
+      method: "GET"
+    },
+    sessionToken
+  );
+
+  return Array.isArray(result.data) ? result.data : [];
 }
 
 export async function createAgent(params: {
@@ -36,44 +87,55 @@ export async function createAgent(params: {
   name: string;
   model?: string;
   systemPrompt?: string;
-}) {
-  const response = await fetch(`${API_BASE}/api/agents`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${params.sessionToken}`
+}): Promise<AgentItem> {
+  const result = await requestJson<AgentItem>(
+    "/api/agents",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        name: params.name,
+        model: params.model,
+        systemPrompt: params.systemPrompt
+      })
     },
-    body: JSON.stringify({
-      name: params.name,
-      model: params.model,
-      systemPrompt: params.systemPrompt
-    })
-  });
-  return response.json();
+    params.sessionToken
+  );
+
+  if (!result.data?.id) {
+    throw new Error("Agent creation failed");
+  }
+
+  return result.data;
 }
 
-export async function getOllamaSettings(sessionToken: string) {
-  const response = await fetch(`${API_BASE}/api/settings/ollama`, {
-    headers: {
-      Authorization: `Bearer ${sessionToken}`
-    }
-  });
-  return response.json();
+export async function getOllamaSettings(sessionToken: string): Promise<{ baseUrl: string }> {
+  const result = await requestJson<{ baseUrl: string }>(
+    "/api/settings/ollama",
+    { method: "GET" },
+    sessionToken
+  );
+
+  return result.data ?? { baseUrl: "http://127.0.0.1:11434" };
 }
 
 export async function updateOllamaSettings(params: {
   sessionToken: string;
   baseUrl: string;
-}) {
-  const response = await fetch(`${API_BASE}/api/settings/ollama`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${params.sessionToken}`
+}): Promise<{ baseUrl: string }> {
+  const result = await requestJson<{ baseUrl: string }>(
+    "/api/settings/ollama",
+    {
+      method: "PUT",
+      body: JSON.stringify({ baseUrl: params.baseUrl })
     },
-    body: JSON.stringify({ baseUrl: params.baseUrl })
-  });
-  return response.json();
+    params.sessionToken
+  );
+
+  if (!result.data) {
+    throw new Error("Failed to save settings");
+  }
+
+  return result.data;
 }
 
 export async function streamChat(params: {
@@ -136,7 +198,6 @@ export async function streamChat(params: {
           message?: string;
         };
       } catch {
-        // Ignore malformed SSE chunks in MVP stage.
         continue;
       }
 

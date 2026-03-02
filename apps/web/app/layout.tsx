@@ -8,8 +8,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout(props: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body>{props.children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body className="antialiased">
+        <div className="pointer-events-none fixed inset-0 grid-fade" aria-hidden="true" />
+        <div className="relative min-h-screen">{props.children}</div>
+      </body>
     </html>
   );
 }
