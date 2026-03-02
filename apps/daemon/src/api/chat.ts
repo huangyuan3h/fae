@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { streamText, tool, type ToolSet } from "ai";
+import { streamText, tool, type ToolSet, type TextStreamPart } from "ai";
 import { Hono } from "hono";
 import { z } from "zod";
 import { getModel } from "../core/llm";
@@ -37,6 +37,74 @@ function createSkillTools(
   }
 
   return tools;
+}
+
+type EmitEvent = (payload: unknown) => void;
+
+function emitFromStreamPart(part: TextStreamPart<ToolSet>, emitEvent: EmitEvent): string {
+  switch (part.type) {
+    case "text-delta":
+      emitEvent({ type: "chunk", content: part.text });
+      return part.text;
+    case "reasoning-start":
+      emitEvent({ type: "think-start", id: part.id });
+      return "";
+    case "reasoning-delta":
+      emitEvent({ type: "think", id: part.id, content: part.text });
+      return "";
+    case "reasoning-end":
+      emitEvent({ type: "think-end", id: part.id });
+      return "";
+    case "tool-input-start":
+      emitEvent({
+        type: "tool-input-start",
+        toolCallId: part.id,
+        toolName: part.toolName
+      });
+      return "";
+    case "tool-input-delta":
+      emitEvent({
+        type: "tool-input-delta",
+        toolCallId: part.id,
+        delta: part.delta
+      });
+      return "";
+    case "tool-input-end":
+      emitEvent({
+        type: "tool-input-end",
+        toolCallId: part.id
+      });
+      return "";
+    case "tool-call":
+      emitEvent({
+        type: "tool-call",
+        toolCallId: part.toolCallId,
+        toolName: part.toolName,
+        input: part.input
+      });
+      return "";
+    case "tool-result":
+      emitEvent({
+        type: "tool-result",
+        toolCallId: part.toolCallId,
+        toolName: part.toolName,
+        output: part.output
+      });
+      return "";
+    case "tool-error":
+      emitEvent({
+        type: "tool-error",
+        toolCallId: part.toolCallId,
+        toolName: part.toolName,
+        message: errorToMessage(part.error)
+      });
+      return "";
+    case "error":
+      emitEvent({ type: "error", message: errorToMessage(part.error) });
+      return "";
+    default:
+      return "";
+  }
 }
 
 chatRoutes.post("/", async (c) => {
@@ -98,69 +166,21 @@ chatRoutes.post("/", async (c) => {
       let assistantContent = "";
       try {
         const result = streamText({
-          model: getModel(
-            agent.model,
-            ollamaBaseURL
-          ) as unknown as Parameters<typeof streamText>[0]["model"],
+          model: getModel(agent.model, ollamaBaseURL),
           system: agent.system_prompt ?? undefined,
           messages: recentMessages,
           tools: hasTools ? tools : undefined,
+          providerOptions: {
+            // Request reasoning traces for models that support thinking mode.
+            ollama: { think: true }
+          },
           onError: ({ error }) => {
             logger.error({ error }, "streamText emitted an error chunk");
           }
         });
 
         for await (const part of result.fullStream) {
-          if (part.type === "text-delta") {
-            assistantContent += part.text;
-            sendEvent({ type: "chunk", content: part.text });
-          } else if (part.type === "reasoning-start") {
-            sendEvent({ type: "think-start", id: part.id });
-          } else if (part.type === "reasoning-delta") {
-            sendEvent({ type: "think", id: part.id, content: part.text });
-          } else if (part.type === "reasoning-end") {
-            sendEvent({ type: "think-end", id: part.id });
-          } else if (part.type === "tool-input-start") {
-            sendEvent({
-              type: "tool-input-start",
-              toolCallId: part.id,
-              toolName: part.toolName
-            });
-          } else if (part.type === "tool-input-delta") {
-            sendEvent({
-              type: "tool-input-delta",
-              toolCallId: part.id,
-              delta: part.delta
-            });
-          } else if (part.type === "tool-input-end") {
-            sendEvent({
-              type: "tool-input-end",
-              toolCallId: part.id
-            });
-          } else if (part.type === "tool-call") {
-            sendEvent({
-              type: "tool-call",
-              toolCallId: part.toolCallId,
-              toolName: part.toolName,
-              input: part.input
-            });
-          } else if (part.type === "tool-result") {
-            sendEvent({
-              type: "tool-result",
-              toolCallId: part.toolCallId,
-              toolName: part.toolName,
-              output: part.output
-            });
-          } else if (part.type === "tool-error") {
-            sendEvent({
-              type: "tool-error",
-              toolCallId: part.toolCallId,
-              toolName: part.toolName,
-              message: errorToMessage(part.error)
-            });
-          } else if (part.type === "error") {
-            sendEvent({ type: "error", message: errorToMessage(part.error) });
-          }
+          assistantContent += emitFromStreamPart(part, sendEvent);
         }
 
         if (assistantContent.trim().length > 0) {

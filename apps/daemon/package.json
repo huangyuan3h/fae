@@ -11,7 +11,7 @@
   "dependencies": {
     "ai": "latest",
     "hono": "latest",
-    "ollama-ai-provider": "latest",
+    "ollama-ai-provider-v2": "^3.3.1",
     "pino": "latest",
     "zod": "latest"
   },
