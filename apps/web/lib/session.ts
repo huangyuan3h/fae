@@ -20,3 +20,16 @@ export function clearSessionToken(): void {
   }
   window.localStorage.removeItem(SESSION_KEY);
 }
+
+export async function ensureSessionToken(
+  createToken: () => Promise<string>
+): Promise<string> {
+  const existing = getSessionToken();
+  if (existing) {
+    return existing;
+  }
+
+  const created = await createToken();
+  saveSessionToken(created);
+  return created;
+}

@@ -1,9 +1,8 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CircleCheck, LinkIcon } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { AppShell } from "../../components/app-shell";
 import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import { Badge } from "../../components/ui/badge";
@@ -18,26 +17,27 @@ import {
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Spinner } from "../../components/ui/spinner";
-import { getOllamaSettings, updateOllamaSettings } from "../../lib/api";
-import { getSessionToken } from "../../lib/session";
+import { createDevSession, getOllamaSettings, updateOllamaSettings } from "../../lib/api";
+import { ensureSessionToken } from "../../lib/session";
 
 export default function SettingsPage() {
-  const router = useRouter();
   const [sessionToken, setSessionToken] = useState<string>("");
   const [baseUrl, setBaseUrl] = useState("http://127.0.0.1:11434");
   const [loading, setLoading] = useState(false);
   const [initializing, setInitializing] = useState(true);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const sessionRetryRef = useRef(false);
 
   useEffect(() => {
-    const token = getSessionToken();
-    if (!token) {
-      router.replace("/login");
-      return;
-    }
-    setSessionToken(token);
-  }, [router]);
+    ensureSessionToken(createDevSession)
+      .then((token) => {
+        setSessionToken(token);
+      })
+      .catch(() => {
+        setError("Failed to create development session.");
+      });
+  }, []);
 
   useEffect(() => {
     if (!sessionToken) {
@@ -54,6 +54,18 @@ export default function SettingsPage() {
           setBaseUrl(result.baseUrl || "http://127.0.0.1:11434");
         }
       } catch (requestError) {
+        if (!sessionRetryRef.current) {
+          sessionRetryRef.current = true;
+          try {
+            const renewedToken = await createDevSession();
+            if (active) {
+              setSessionToken(renewedToken);
+              return;
+            }
+          } catch {
+            // Fall through to error state below.
+          }
+        }
         if (active) {
           setError(
             requestError instanceof Error

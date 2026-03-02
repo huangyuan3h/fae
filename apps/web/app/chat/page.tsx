@@ -3,7 +3,6 @@
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUp, Bot, Sparkle, User } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { AppShell } from "../../components/app-shell";
 import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import { Badge } from "../../components/ui/badge";
@@ -20,7 +19,8 @@ import { Select } from "../../components/ui/select";
 import { Spinner } from "../../components/ui/spinner";
 import { Textarea } from "../../components/ui/textarea";
 import { createAgent, fetchAgents, streamChat, type AgentItem } from "../../lib/api";
-import { clearSessionToken, getSessionToken } from "../../lib/session";
+import { clearSessionToken, ensureSessionToken } from "../../lib/session";
+import { createDevSession } from "../../lib/api";
 import { cn } from "../../lib/utils";
 
 interface ChatMessage {
@@ -29,7 +29,6 @@ interface ChatMessage {
 }
 
 export default function ChatPage() {
-  const router = useRouter();
   const [sessionToken, setSessionToken] = useState<string>("");
   const [agents, setAgents] = useState<AgentItem[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState("");
@@ -40,15 +39,17 @@ export default function ChatPage() {
   const [statusText, setStatusText] = useState<string>("");
   const [pageError, setPageError] = useState<string>("");
   const messageEndRef = useRef<HTMLDivElement | null>(null);
+  const sessionRetryRef = useRef(false);
 
   useEffect(() => {
-    const token = getSessionToken();
-    if (!token) {
-      router.replace("/login");
-      return;
-    }
-    setSessionToken(token);
-  }, [router]);
+    ensureSessionToken(createDevSession)
+      .then((token) => {
+        setSessionToken(token);
+      })
+      .catch(() => {
+        setPageError("Failed to create development session.");
+      });
+  }, []);
 
   useEffect(() => {
     if (!sessionToken) {
@@ -96,6 +97,20 @@ export default function ChatPage() {
         }
 
         clearSessionToken();
+        if (!sessionRetryRef.current) {
+          sessionRetryRef.current = true;
+          try {
+            const renewedToken = await createDevSession();
+            if (active) {
+              setSessionToken(renewedToken);
+              setStatusText("Session renewed.");
+              return;
+            }
+          } catch {
+            // Fall through to error state below.
+          }
+        }
+
         setPageError(error instanceof Error ? error.message : "Failed to load chat.");
       } finally {
         if (active) {

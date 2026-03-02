@@ -70,6 +70,22 @@ export async function loginWithStartupToken(token: string): Promise<string> {
   return result.data.sessionToken;
 }
 
+export async function createDevSession(): Promise<string> {
+  const result = await requestJson<{ sessionToken: string }>(
+    "/api/auth/dev-login",
+    {
+      method: "POST",
+      body: JSON.stringify({})
+    }
+  );
+
+  if (!result.ok || !result.data?.sessionToken) {
+    throw new Error(result.error?.message ?? "Failed to create dev session");
+  }
+
+  return result.data.sessionToken;
+}
+
 export async function fetchAgents(sessionToken: string): Promise<AgentItem[]> {
   const result = await requestJson<AgentItem[]>(
     "/api/agents",

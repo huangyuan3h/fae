@@ -34,3 +34,26 @@ authRoutes.post("/login", async (c) => {
     }
   });
 });
+
+authRoutes.post("/dev-login", (c) => {
+  if (process.env.NODE_ENV === "production") {
+    return c.json(
+      {
+        ok: false,
+        error: {
+          code: "DEV_LOGIN_DISABLED",
+          message: "Development login is disabled in production"
+        }
+      },
+      404
+    );
+  }
+
+  const sessionToken = createSessionToken(c.get("db"));
+  return c.json({
+    ok: true,
+    data: {
+      sessionToken
+    }
+  });
+});
