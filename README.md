@@ -17,7 +17,13 @@ bun run dev:daemon
 bun run dev:web
 ```
 
-Backend API runs at `http://127.0.0.1:8080` and frontend runs at `http://localhost:3000`.
+Backend API runs at `http://127.0.0.1:8787` by default and frontend runs at `http://localhost:3000`.
+
+If you need a custom backend port, set `DAEMON_PORT` (daemon) and `NEXT_PUBLIC_DAEMON_PORT` (web) to the same value:
+
+```bash
+DAEMON_PORT=18080 NEXT_PUBLIC_DAEMON_PORT=18080 bun dev
+```
 
 ## Build
 

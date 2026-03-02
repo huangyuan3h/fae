@@ -20,6 +20,17 @@ function getProjectRoot(): string {
   return path.resolve(import.meta.dir, "../../..");
 }
 
+function resolvePort(): number {
+  const rawPort = process.env.DAEMON_PORT ?? process.env.PORT ?? "8787";
+  const port = Number.parseInt(rawPort, 10);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(
+      `Invalid daemon port "${rawPort}". Set DAEMON_PORT to a value between 1 and 65535.`
+    );
+  }
+  return port;
+}
+
 async function bootstrap(): Promise<void> {
   const dataRoot = path.join(os.homedir(), ".fae");
   const logsDir = path.join(dataRoot, "logs");
@@ -85,7 +96,7 @@ async function bootstrap(): Promise<void> {
   app.route("/api", createApiRouter());
 
   const hostname = "127.0.0.1";
-  const port = 8080;
+  const port = resolvePort();
   const server = Bun.serve({
     hostname,
     port,

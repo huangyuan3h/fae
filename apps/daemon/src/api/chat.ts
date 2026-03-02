@@ -1,8 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Hono } from "hono";
-import { streamText } from "ai";
 import { z } from "zod";
-import { getModel } from "../core/llm";
 import type { AppBindings } from "../types";
 
 const chatSchema = z.object({
@@ -11,6 +9,11 @@ const chatSchema = z.object({
 });
 
 export const chatRoutes = new Hono<AppBindings>();
+
+function normalizeOllamaBaseURL(baseURL: string): string {
+  const trimmed = baseURL.trim().replace(/\/+$/, "");
+  return trimmed.endsWith("/api") ? trimmed : `${trimmed}/api`;
+}
 
 chatRoutes.post("/", async (c) => {
   const payload = chatSchema.parse(await c.req.json());
@@ -43,13 +46,9 @@ chatRoutes.post("/", async (c) => {
   const ollamaBaseUrlSetting = db
     .prepare<{ value: string }>("SELECT value FROM settings WHERE key = ?")
     .get("ollama.baseUrl");
-
-  const llmResult = streamText({
-    // NOTE: ollama-ai-provider currently exposes a model type that lags latest ai SDK typings.
-    model: getModel(agent.model, ollamaBaseUrlSetting?.value) as never,
-    system: agent.system_prompt ?? "You are a helpful local AI assistant.",
-    messages: [{ role: "user", content: payload.message }]
-  });
+  const ollamaBaseURL = normalizeOllamaBaseURL(
+    ollamaBaseUrlSetting?.value ?? "http://127.0.0.1:11434"
+  );
 
   const encoder = new TextEncoder();
   let assistantContent = "";
@@ -57,10 +56,71 @@ chatRoutes.post("/", async (c) => {
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
-        for await (const chunk of llmResult.textStream) {
-          assistantContent += chunk;
-          const event = `data: ${JSON.stringify({ type: "chunk", content: chunk })}\n\n`;
-          controller.enqueue(encoder.encode(event));
+        const ollamaResponse = await fetch(`${ollamaBaseURL}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: agent.model,
+            stream: true,
+            messages: [
+              ...(agent.system_prompt
+                ? [{ role: "system", content: agent.system_prompt }]
+                : []),
+              { role: "user", content: payload.message }
+            ]
+          })
+        });
+
+        if (!ollamaResponse.ok || !ollamaResponse.body) {
+          throw new Error(
+            `Ollama request failed with status ${ollamaResponse.status}`
+          );
+        }
+
+        const reader = ollamaResponse.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            break;
+          }
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) {
+              continue;
+            }
+
+            let parsed:
+              | { message?: { content?: string }; done?: boolean; error?: string }
+              | undefined;
+            try {
+              parsed = JSON.parse(trimmed) as {
+                message?: { content?: string };
+                done?: boolean;
+                error?: string;
+              };
+            } catch {
+              continue;
+            }
+
+            if (parsed.error) {
+              throw new Error(parsed.error);
+            }
+
+            const chunk = parsed.message?.content ?? "";
+            if (chunk.length > 0) {
+              assistantContent += chunk;
+              const event = `data: ${JSON.stringify({ type: "chunk", content: chunk })}\n\n`;
+              controller.enqueue(encoder.encode(event));
+            }
+          }
         }
 
         db.prepare(
@@ -71,7 +131,11 @@ chatRoutes.post("/", async (c) => {
         controller.close();
       } catch (error) {
         logger.error({ error }, "Chat streaming failed");
-        const event = `data: ${JSON.stringify({ type: "error", message: "Chat streaming failed" })}\n\n`;
+        const event = `data: ${JSON.stringify({
+          type: "error",
+          message:
+            error instanceof Error ? error.message : "Chat streaming failed"
+        })}\n\n`;
         controller.enqueue(encoder.encode(event));
         controller.close();
       }

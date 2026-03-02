@@ -4,13 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { fetchAgents, streamChat } from "../../lib/api";
+import { createAgent, fetchAgents, streamChat } from "../../lib/api";
 
 const SESSION_KEY = "fae_session_token";
 
 interface AgentItem {
   id: string;
   name: string;
+  model?: string;
 }
 
 interface ChatMessage {
@@ -26,6 +27,7 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [agentStatus, setAgentStatus] = useState<string>("");
 
   useEffect(() => {
     const token = localStorage.getItem(SESSION_KEY);
@@ -41,12 +43,32 @@ export default function ChatPage() {
       return;
     }
     fetchAgents(sessionToken)
-      .then((result) => {
+      .then(async (result) => {
         const list = Array.isArray(result?.data) ? (result.data as AgentItem[]) : [];
-        setAgents(list);
         if (list.length > 0) {
+          setAgents(list);
           setSelectedAgentId(list[0].id);
+          setAgentStatus("");
+          return;
         }
+
+        setAgentStatus("No agents found. Creating a default agent...");
+        const created = await createAgent({
+          sessionToken,
+          name: "My Local Assistant",
+          model: "qwen3.5:27b",
+          systemPrompt: "You are a helpful local AI assistant."
+        });
+
+        if (created?.ok && created?.data?.id) {
+          const createdAgent = created.data as AgentItem;
+          setAgents([createdAgent]);
+          setSelectedAgentId(createdAgent.id);
+          setAgentStatus("Default agent created.");
+          return;
+        }
+
+        setAgentStatus("No agents available. Please create one later.");
       })
       .catch(() => {
         localStorage.removeItem(SESSION_KEY);
@@ -118,11 +140,12 @@ export default function ChatPage() {
           >
             {agents.map((agent) => (
               <option key={agent.id} value={agent.id}>
-                {agent.name}
+                {agent.name} ({agent.model ?? "unknown model"})
               </option>
             ))}
           </select>
         </label>
+        {agentStatus ? <p>{agentStatus}</p> : null}
 
         <div
           style={{

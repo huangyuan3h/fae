@@ -1,5 +1,6 @@
+const daemonPort = process.env.NEXT_PUBLIC_DAEMON_PORT ?? "8787";
 export const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE ?? "http://127.0.0.1:8080";
+  process.env.NEXT_PUBLIC_API_BASE ?? `http://127.0.0.1:${daemonPort}`;
 
 export interface LoginResponse {
   ok: boolean;
@@ -26,6 +27,27 @@ export async function fetchAgents(sessionToken: string) {
     headers: {
       Authorization: `Bearer ${sessionToken}`
     }
+  });
+  return response.json();
+}
+
+export async function createAgent(params: {
+  sessionToken: string;
+  name: string;
+  model?: string;
+  systemPrompt?: string;
+}) {
+  const response = await fetch(`${API_BASE}/api/agents`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${params.sessionToken}`
+    },
+    body: JSON.stringify({
+      name: params.name,
+      model: params.model,
+      systemPrompt: params.systemPrompt
+    })
   });
   return response.json();
 }
@@ -104,13 +126,24 @@ export async function streamChat(params: {
         return;
       }
 
+      let parsed:
+        | { type?: string; content?: string; message?: string }
+        | undefined;
       try {
-        const parsed = JSON.parse(data) as { type?: string; content?: string };
-        if (parsed.type === "chunk" && parsed.content) {
-          params.onChunk(parsed.content);
-        }
+        parsed = JSON.parse(data) as {
+          type?: string;
+          content?: string;
+          message?: string;
+        };
       } catch {
         // Ignore malformed SSE chunks in MVP stage.
+        continue;
+      }
+
+      if (parsed.type === "chunk" && parsed.content) {
+        params.onChunk(parsed.content);
+      } else if (parsed.type === "error" && parsed.message) {
+        throw new Error(parsed.message);
       }
     }
   }
