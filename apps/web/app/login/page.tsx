@@ -21,12 +21,12 @@ export default function LoginPage() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-3xl items-center px-4 py-8 sm:px-6">
-      <Card className="w-full border-slate-700/70 bg-slate-950/70">
+      <Card className="w-full">
         <CardHeader className="space-y-3">
           <CardTitle className="text-3xl">Preparing workspace</CardTitle>
           <CardDescription>Login is disabled in development. Redirecting to chat...</CardDescription>
         </CardHeader>
-        <CardContent className="flex items-center gap-3 text-slate-300">
+        <CardContent className="flex items-center gap-3 text-slate-600">
           <Spinner className="h-4 w-4" />
           Redirecting...
         </CardContent>

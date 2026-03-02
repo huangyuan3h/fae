@@ -4,6 +4,7 @@ import { ZodError } from "zod";
 import { authRoutes } from "./auth";
 import { agentRoutes } from "./agents";
 import { chatRoutes } from "./chat";
+import { channelRoutes } from "./channels";
 import { skillRoutes } from "./skills";
 import { settingsRoutes } from "./settings";
 import { requireAuth } from "../utils/auth";
@@ -19,6 +20,7 @@ export function createApiRouter(): Hono<AppBindings> {
   protectedApi.use("*", requireAuth());
   protectedApi.route("/agents", agentRoutes);
   protectedApi.route("/chat", chatRoutes);
+  protectedApi.route("/channels", channelRoutes);
   protectedApi.route("/skills", skillRoutes);
   protectedApi.route("/settings", settingsRoutes);
   api.route("/", protectedApi);

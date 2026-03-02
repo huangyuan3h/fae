@@ -2,8 +2,10 @@ import { pathToFileURL } from "node:url";
 import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import type { Logger } from "pino";
+import { sql } from "drizzle-orm";
 import type { SkillDefinition } from "../types";
 import type { DB } from "../db/types";
+import { skills as skillsTable } from "../db/schema";
 
 interface SkillModule {
   id?: string;
@@ -79,11 +81,21 @@ export async function loadCoreSkills(params: {
         withTimeout(Promise.resolve(execute(skillParams)), timeoutMs)
     };
 
-    params.db
-      .prepare(
-        "INSERT INTO skills (id, name, enabled) VALUES (?, ?, 1) ON CONFLICT(id) DO UPDATE SET name = excluded.name, enabled = 1"
-      )
-      .run(wrapped.id, wrapped.name);
+    params.db.orm
+      .insert(skillsTable)
+      .values({
+        id: wrapped.id,
+        name: wrapped.name,
+        enabled: 1
+      })
+      .onConflictDoUpdate({
+        target: skillsTable.id,
+        set: {
+          name: wrapped.name,
+          enabled: sql`1`
+        }
+      })
+      .run();
 
     skills.push(wrapped);
   }

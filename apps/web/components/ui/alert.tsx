@@ -7,9 +7,9 @@ const alertVariants = cva(
   {
     variants: {
       variant: {
-        default: "border-slate-700 bg-slate-900/70 text-slate-200",
-        destructive: "border-rose-500/40 bg-rose-500/10 text-rose-100",
-        success: "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
+        default: "border-slate-300 bg-slate-50 text-slate-700",
+        destructive: "border-rose-200 bg-rose-50 text-rose-700",
+        success: "border-emerald-200 bg-emerald-50 text-emerald-700"
       }
     },
     defaultVariants: {

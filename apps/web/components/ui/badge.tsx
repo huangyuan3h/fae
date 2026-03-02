@@ -7,10 +7,10 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default: "border-sky-300/30 bg-sky-400/15 text-sky-200",
-        secondary: "border-slate-600 bg-slate-800 text-slate-200",
-        success: "border-emerald-300/30 bg-emerald-400/15 text-emerald-200",
-        danger: "border-rose-300/30 bg-rose-400/15 text-rose-200"
+        default: "border-blue-200 bg-blue-50 text-blue-700",
+        secondary: "border-slate-300 bg-slate-100 text-slate-700",
+        success: "border-emerald-200 bg-emerald-50 text-emerald-700",
+        danger: "border-rose-200 bg-rose-50 text-rose-700"
       }
     },
     defaultVariants: {

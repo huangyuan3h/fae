@@ -1,12 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  --background: #050a14;
-  --foreground: #f6f7fb;
-  --muted-foreground: #98a4c0;
-  --card: rgba(13, 23, 42, 0.72);
-  --border: rgba(148, 163, 184, 0.24);
-  --accent: #38bdf8;
+  --background: #f6f7fb;
+  --foreground: #14213d;
+  --muted-foreground: #6b7280;
+  --card: #ffffff;
+  --border: #dbe3ef;
+  --accent: #1d4ed8;
   --font-space-grotesk: "Avenir Next", "Poppins", "Nunito Sans", "Segoe UI",
     sans-serif;
   --font-ibm-plex-mono: "SF Mono", "Menlo", "Monaco", "Consolas",
@@ -27,10 +27,9 @@ body {
   color: var(--foreground);
   font-family: var(--font-space-grotesk);
   background:
-    radial-gradient(circle at 12% 18%, rgba(56, 189, 248, 0.2), transparent 42%),
-    radial-gradient(circle at 88% 8%, rgba(59, 130, 246, 0.22), transparent 38%),
-    radial-gradient(circle at 52% 102%, rgba(14, 165, 233, 0.16), transparent 40%),
-    linear-gradient(160deg, #020617 0%, #040b1f 40%, #020617 100%);
+    radial-gradient(circle at 0% 0%, #e6efff 0%, transparent 35%),
+    radial-gradient(circle at 100% 0%, #eafaf5 0%, transparent 30%),
+    var(--background);
 }
 
 a {
@@ -39,14 +38,6 @@ a {
 }
 
 ::selection {
-  background: rgba(56, 189, 248, 0.35);
-  color: #f8fafc;
-}
-
-.grid-fade {
-  background-image:
-    linear-gradient(to right, rgba(148, 163, 184, 0.08) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
-  background-size: 42px 42px;
-  mask-image: radial-gradient(circle at 50% 30%, black, transparent 78%);
+  background: rgba(37, 99, 235, 0.28);
+  color: #0f172a;
 }

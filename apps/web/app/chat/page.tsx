@@ -392,7 +392,7 @@ export default function ChatPage() {
         </Card>
 
         <Card className="overflow-hidden">
-          <CardHeader className="border-b border-slate-800/70">
+          <CardHeader className="border-b border-slate-200">
             <CardTitle className="text-lg">Conversation</CardTitle>
             <CardDescription>
               Includes reasoning and tool-call traces from streaming events.
@@ -401,7 +401,7 @@ export default function ChatPage() {
           <CardContent className="flex h-[68vh] flex-col gap-4 p-4 sm:p-5">
             <div className="flex-1 space-y-3 overflow-y-auto pr-1">
               {messages.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/40 p-4 text-sm text-slate-400">
+                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
                   Ask something to see stream output, thinking traces, and tool execution.
                 </div>
               ) : null}
@@ -412,11 +412,11 @@ export default function ChatPage() {
                   className={cn(
                     "max-w-[92%] rounded-2xl border p-3 text-sm leading-relaxed",
                     message.role === "assistant"
-                      ? "border-slate-700 bg-slate-900/75 text-slate-100"
-                      : "ml-auto border-sky-300/35 bg-sky-400/15 text-sky-50"
+                      ? "border-slate-200 bg-white text-slate-900"
+                      : "ml-auto border-blue-200 bg-blue-50 text-blue-900"
                   )}
                 >
-                  <header className="mb-1 inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.14em] text-slate-400">
+                  <header className="mb-1 inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.14em] text-slate-500">
                     {message.role === "assistant" ? (
                       <Bot className="h-3.5 w-3.5" />
                     ) : (
@@ -426,12 +426,12 @@ export default function ChatPage() {
                   </header>
 
                   {message.role === "assistant" && message.thinking.trim().length > 0 ? (
-                    <details className="mb-2 rounded-lg border border-slate-700/80 bg-slate-950/70 p-2 text-xs text-slate-300">
-                      <summary className="flex cursor-pointer list-none items-center gap-1.5 font-medium text-slate-200">
+                    <details className="mb-2 rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs text-slate-600">
+                      <summary className="flex cursor-pointer list-none items-center gap-1.5 font-medium text-slate-700">
                         <Brain className="h-3.5 w-3.5" />
                         Thinking Trace
                       </summary>
-                      <pre className="mt-2 whitespace-pre-wrap font-[family-name:var(--font-ibm-plex-mono)] text-[11px] leading-relaxed text-slate-300">
+                      <pre className="mt-2 whitespace-pre-wrap font-[family-name:var(--font-ibm-plex-mono)] text-[11px] leading-relaxed text-slate-600">
                         {message.thinking}
                       </pre>
                     </details>
@@ -444,10 +444,10 @@ export default function ChatPage() {
                       {message.toolTraces.map((trace) => (
                         <section
                           key={trace.toolCallId}
-                          className="rounded-lg border border-slate-700/80 bg-slate-950/70 p-2"
+                          className="rounded-lg border border-slate-200 bg-slate-50 p-2"
                         >
                           <div className="mb-1 flex items-center justify-between gap-2 text-xs">
-                            <p className="inline-flex items-center gap-1.5 font-medium text-slate-200">
+                            <p className="inline-flex items-center gap-1.5 font-medium text-slate-700">
                               <Wrench className="h-3.5 w-3.5" />
                               {trace.toolName}
                             </p>
@@ -465,13 +465,13 @@ export default function ChatPage() {
                           </div>
 
                           {trace.inputText ? (
-                            <pre className="mb-2 whitespace-pre-wrap rounded-md bg-slate-900 p-2 font-[family-name:var(--font-ibm-plex-mono)] text-[11px] text-slate-300">
+                            <pre className="mb-2 whitespace-pre-wrap rounded-md bg-white p-2 font-[family-name:var(--font-ibm-plex-mono)] text-[11px] text-slate-600 border border-slate-200">
                               {trace.inputText}
                             </pre>
                           ) : null}
 
                           {trace.outputText ? (
-                            <pre className="whitespace-pre-wrap rounded-md bg-slate-900 p-2 font-[family-name:var(--font-ibm-plex-mono)] text-[11px] text-emerald-200">
+                            <pre className="whitespace-pre-wrap rounded-md bg-emerald-50 p-2 font-[family-name:var(--font-ibm-plex-mono)] text-[11px] text-emerald-700 border border-emerald-200">
                               {trace.outputText}
                             </pre>
                           ) : null}
@@ -488,7 +488,7 @@ export default function ChatPage() {
               <div ref={messageEndRef} />
             </div>
 
-            <form onSubmit={onSubmit} className="space-y-3 border-t border-slate-800/70 pt-3">
+            <form onSubmit={onSubmit} className="space-y-3 border-t border-slate-200 pt-3">
               <Label htmlFor="prompt">Prompt</Label>
               <Textarea
                 id="prompt"

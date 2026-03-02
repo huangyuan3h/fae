@@ -48,10 +48,63 @@ async function requestJson<T>(
   return parsed;
 }
 
+export type ProviderType = "ollama" | "openai" | "google";
+
 export interface AgentItem {
   id: string;
   name: string;
-  model?: string;
+  provider: ProviderType;
+  model: string;
+  system_prompt?: string | null;
+  skills: string[];
+}
+
+export interface ProviderSettings {
+  defaultProvider: ProviderType;
+  ollama: {
+    baseUrl: string;
+  };
+  openai: {
+    apiKey: string;
+    baseUrl: string;
+  };
+  google: {
+    apiKey: string;
+    baseUrl: string;
+  };
+}
+
+export interface ChannelMessage {
+  id: string;
+  sender_type: "user" | "agent";
+  sender_id: string;
+  sender_name: string;
+  content: string;
+  created_at: number;
+}
+
+export interface ChannelDetail {
+  id: string;
+  name: string;
+  topic: string;
+  users: string[];
+  members: Array<{ id: string; name: string }>;
+  messages: ChannelMessage[];
+}
+
+export interface ChannelSummary {
+  id: string;
+  name: string;
+  topic: string;
+  created_at: number;
+  member_count: number;
+  user_count: number;
+}
+
+export interface SkillItem {
+  id: string;
+  name: string;
+  enabled: number;
 }
 
 export type ChatStreamEvent =
@@ -115,8 +168,10 @@ export async function fetchAgents(sessionToken: string): Promise<AgentItem[]> {
 export async function createAgent(params: {
   sessionToken: string;
   name: string;
+  provider?: ProviderType;
   model?: string;
   systemPrompt?: string;
+  skills?: string[];
 }): Promise<AgentItem> {
   const result = await requestJson<AgentItem>(
     "/api/agents",
@@ -124,8 +179,10 @@ export async function createAgent(params: {
       method: "POST",
       body: JSON.stringify({
         name: params.name,
+        provider: params.provider,
         model: params.model,
-        systemPrompt: params.systemPrompt
+        systemPrompt: params.systemPrompt,
+        skills: params.skills ?? []
       })
     },
     params.sessionToken
@@ -136,6 +193,227 @@ export async function createAgent(params: {
   }
 
   return result.data;
+}
+
+export async function updateAgent(params: {
+  sessionToken: string;
+  id: string;
+  name: string;
+  provider: ProviderType;
+  model: string;
+  systemPrompt?: string | null;
+  skills?: string[];
+}): Promise<AgentItem> {
+  const result = await requestJson<AgentItem>(
+    `/api/agents/${params.id}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        name: params.name,
+        provider: params.provider,
+        model: params.model,
+        systemPrompt: params.systemPrompt ?? null,
+        skills: params.skills ?? []
+      })
+    },
+    params.sessionToken
+  );
+
+  if (!result.data?.id) {
+    throw new Error("Agent update failed");
+  }
+
+  return result.data;
+}
+
+export async function deleteAgent(params: {
+  sessionToken: string;
+  id: string;
+}): Promise<void> {
+  await requestJson<{ id: string }>(
+    `/api/agents/${params.id}`,
+    { method: "DELETE" },
+    params.sessionToken
+  );
+}
+
+export async function fetchSkills(sessionToken: string): Promise<SkillItem[]> {
+  const result = await requestJson<SkillItem[]>(
+    "/api/skills",
+    { method: "GET" },
+    sessionToken
+  );
+  return Array.isArray(result.data) ? result.data : [];
+}
+
+export async function updateSkill(params: {
+  sessionToken: string;
+  id: string;
+  enabled: boolean;
+}): Promise<SkillItem> {
+  const result = await requestJson<SkillItem>(
+    `/api/skills/${params.id}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ enabled: params.enabled })
+    },
+    params.sessionToken
+  );
+
+  if (!result.data?.id) {
+    throw new Error("Failed to update skill");
+  }
+
+  return result.data;
+}
+
+export async function getProviderSettings(sessionToken: string): Promise<ProviderSettings> {
+  const result = await requestJson<ProviderSettings>(
+    "/api/settings/providers",
+    { method: "GET" },
+    sessionToken
+  );
+
+  if (!result.data) {
+    throw new Error("Failed to load providers");
+  }
+
+  return result.data;
+}
+
+export async function updateProviderSettings(params: {
+  sessionToken: string;
+  settings: ProviderSettings;
+}): Promise<ProviderSettings> {
+  const result = await requestJson<ProviderSettings>(
+    "/api/settings/providers",
+    {
+      method: "PUT",
+      body: JSON.stringify(params.settings)
+    },
+    params.sessionToken
+  );
+
+  if (!result.data) {
+    throw new Error("Failed to save providers");
+  }
+
+  return result.data;
+}
+
+export async function fetchChannels(sessionToken: string): Promise<ChannelSummary[]> {
+  const result = await requestJson<ChannelSummary[]>(
+    "/api/channels",
+    { method: "GET" },
+    sessionToken
+  );
+  return Array.isArray(result.data) ? result.data : [];
+}
+
+export async function getChannel(params: {
+  sessionToken: string;
+  id: string;
+}): Promise<ChannelDetail> {
+  const result = await requestJson<ChannelDetail>(
+    `/api/channels/${params.id}`,
+    { method: "GET" },
+    params.sessionToken
+  );
+
+  if (!result.data) {
+    throw new Error("Channel not found");
+  }
+
+  return result.data;
+}
+
+export async function createChannel(params: {
+  sessionToken: string;
+  name: string;
+  topic: string;
+  users: string[];
+  agentIds: string[];
+}): Promise<ChannelDetail> {
+  const result = await requestJson<ChannelDetail>(
+    "/api/channels",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        name: params.name,
+        topic: params.topic,
+        users: params.users,
+        agentIds: params.agentIds
+      })
+    },
+    params.sessionToken
+  );
+
+  if (!result.data) {
+    throw new Error("Failed to create channel");
+  }
+
+  return result.data;
+}
+
+export async function updateChannel(params: {
+  sessionToken: string;
+  id: string;
+  name: string;
+  topic: string;
+  users: string[];
+  agentIds: string[];
+}): Promise<ChannelDetail> {
+  const result = await requestJson<ChannelDetail>(
+    `/api/channels/${params.id}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        name: params.name,
+        topic: params.topic,
+        users: params.users,
+        agentIds: params.agentIds
+      })
+    },
+    params.sessionToken
+  );
+
+  if (!result.data) {
+    throw new Error("Failed to update channel");
+  }
+
+  return result.data;
+}
+
+export async function deleteChannel(params: {
+  sessionToken: string;
+  id: string;
+}): Promise<void> {
+  await requestJson(`/api/channels/${params.id}`, { method: "DELETE" }, params.sessionToken);
+}
+
+export async function sendChannelMessage(params: {
+  sessionToken: string;
+  channelId: string;
+  message: string;
+  userName?: string;
+}): Promise<ChannelDetail> {
+  const result = await requestJson<{ channel: ChannelDetail }>(
+    `/api/channels/${params.channelId}/chat`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        message: params.message,
+        userName: params.userName ?? "You"
+      })
+    },
+    params.sessionToken
+  );
+
+  if (!result.data?.channel) {
+    throw new Error("Failed to send message");
+  }
+
+  return result.data.channel;
 }
 
 export async function getOllamaSettings(sessionToken: string): Promise<{ baseUrl: string }> {

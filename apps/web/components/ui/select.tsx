@@ -16,7 +16,7 @@ export function Select({ className, options, ...props }: SelectProps) {
     <div className="relative">
       <select
         className={cn(
-          "h-10 w-full appearance-none rounded-xl border border-slate-700 bg-slate-950/70 px-3 pr-9 text-sm text-slate-100 outline-none transition focus-visible:ring-2 focus-visible:ring-sky-300",
+          "h-10 w-full appearance-none rounded-xl border border-slate-300 bg-white px-3 pr-9 text-sm text-slate-900 outline-none transition focus-visible:ring-2 focus-visible:ring-blue-300",
           className
         )}
         {...props}
@@ -27,7 +27,7 @@ export function Select({ className, options, ...props }: SelectProps) {
           </option>
         ))}
       </select>
-      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
     </div>
   );
 }

@@ -6,10 +6,16 @@
   "scripts": {
     "dev": "bun run src/daemon.ts",
     "build": "bun build src/daemon.ts --compile --minify --outfile ../../dist/fae-daemon",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push"
   },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.34",
+    "@ai-sdk/openai": "^3.0.37",
     "ai": "latest",
+    "drizzle-kit": "^0.31.9",
+    "drizzle-orm": "^0.45.1",
     "hono": "latest",
     "ollama-ai-provider-v2": "^3.3.1",
     "pino": "latest",

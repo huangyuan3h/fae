@@ -1,11 +1,9 @@
-export interface PreparedStatement<Row = unknown> {
-  run: (...params: unknown[]) => unknown;
-  get: (...params: unknown[]) => Row | null;
-  all: (...params: unknown[]) => Row[];
-}
+import type { Database as BunSQLiteDatabase } from "bun:sqlite";
+import type { BunSQLiteDatabase as DrizzleDatabase } from "drizzle-orm/bun-sqlite";
+import type * as schema from "./schema";
 
 export interface DB {
-  exec: (sql: string) => void;
-  prepare: <Row = unknown>(sql: string) => PreparedStatement<Row>;
+  client: BunSQLiteDatabase;
+  orm: DrizzleDatabase<typeof schema>;
   close: () => void;
 }
