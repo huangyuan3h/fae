@@ -54,6 +54,20 @@ export interface AgentItem {
   model?: string;
 }
 
+export type ChatStreamEvent =
+  | { type: "chunk"; content: string }
+  | { type: "think-start"; id: string }
+  | { type: "think"; id?: string; content: string }
+  | { type: "think-end"; id: string }
+  | { type: "tool-input-start"; toolCallId: string; toolName: string }
+  | { type: "tool-input-delta"; toolCallId: string; delta: string }
+  | { type: "tool-input-end"; toolCallId: string }
+  | { type: "tool-call"; toolCallId: string; toolName: string; input: unknown }
+  | { type: "tool-result"; toolCallId: string; toolName: string; output: unknown }
+  | { type: "tool-error"; toolCallId: string; toolName: string; message: string }
+  | { type: "error"; message: string }
+  | { type: "final"; assistantText?: string };
+
 export async function loginWithStartupToken(token: string): Promise<string> {
   const result = await requestJson<{ sessionToken: string }>(
     "/api/auth/login",
@@ -159,6 +173,7 @@ export async function streamChat(params: {
   agentId: string;
   message: string;
   onChunk: (chunk: string) => void;
+  onEvent?: (event: ChatStreamEvent) => void;
 }): Promise<void> {
   const response = await fetch(`${API_BASE}/api/chat`, {
     method: "POST",
@@ -215,6 +230,10 @@ export async function streamChat(params: {
         };
       } catch {
         continue;
+      }
+
+      if (parsed.type) {
+        params.onEvent?.(parsed as ChatStreamEvent);
       }
 
       if (parsed.type === "chunk" && parsed.content) {
