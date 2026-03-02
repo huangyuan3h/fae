@@ -9,6 +9,7 @@ export interface AgentRecord {
   provider: "ollama" | "openai" | "google";
   model: string;
   system_prompt: string | null;
+  avatar_url: string | null;
   skills: string[];
   created_at: number;
 }
@@ -19,6 +20,7 @@ interface AgentRow {
   provider: "ollama" | "openai" | "google";
   model: string;
   system_prompt: string | null;
+  avatar_url: string | null;
   skills_json: string;
   created_at: number;
 }
@@ -47,6 +49,7 @@ function mapRow(row: AgentRow): AgentRecord {
     provider: row.provider,
     model: row.model,
     system_prompt: row.system_prompt,
+    avatar_url: row.avatar_url,
     skills: parseSkills(row.skills_json),
     created_at: row.created_at
   };
@@ -60,6 +63,7 @@ export function listAgents(db: DB): AgentRecord[] {
       provider: agents.provider,
       model: agents.model,
       system_prompt: agents.systemPrompt,
+      avatar_url: agents.avatarUrl,
       skills_json: agents.skillsJson,
       created_at: agents.createdAt
     })
@@ -77,6 +81,7 @@ export function createAgent(
     provider?: "ollama" | "openai" | "google";
     model?: string;
     systemPrompt?: string;
+    avatarUrl?: string | null;
     skills?: string[];
   }
 ): AgentRecord {
@@ -84,6 +89,7 @@ export function createAgent(
   const provider = input.provider ?? "ollama";
   const model = input.model ?? "qwen2.5:7b";
   const systemPrompt = input.systemPrompt ?? null;
+  const avatarUrl = input.avatarUrl ?? null;
   const skillsJson = JSON.stringify(input.skills ?? []);
 
   db.orm
@@ -94,6 +100,7 @@ export function createAgent(
       provider,
       model,
       systemPrompt,
+      avatarUrl,
       skillsJson
     })
     .run();
@@ -105,6 +112,7 @@ export function createAgent(
       provider: agents.provider,
       model: agents.model,
       system_prompt: agents.systemPrompt,
+      avatar_url: agents.avatarUrl,
       skills_json: agents.skillsJson,
       created_at: agents.createdAt
     })

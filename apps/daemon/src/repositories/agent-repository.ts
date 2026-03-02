@@ -36,6 +36,7 @@ function mapAgentRow(row: {
   provider: string;
   model: string | null;
   systemPrompt: string | null;
+  avatarUrl: string | null;
   skillsJson: string;
   createdAt: number | null;
 }): AgentRecord {
@@ -45,6 +46,7 @@ function mapAgentRow(row: {
     provider: (row.provider as ProviderType) ?? "ollama",
     model: row.model ?? "qwen2.5:7b",
     system_prompt: row.systemPrompt,
+    avatar_url: row.avatarUrl,
     skills: parseSkills(row.skillsJson),
     created_at: row.createdAt ?? 0
   };
@@ -61,6 +63,7 @@ export class AgentRepository {
         provider: agents.provider,
         model: agents.model,
         systemPrompt: agents.systemPrompt,
+        avatarUrl: agents.avatarUrl,
         skillsJson: agents.skillsJson,
         createdAt: agents.createdAt
       })
@@ -76,6 +79,7 @@ export class AgentRepository {
     provider?: ProviderType;
     model?: string;
     systemPrompt?: string;
+    avatarUrl?: string | null;
     skills?: string[];
   }): AgentRecord {
     const id = randomUUID();
@@ -87,6 +91,7 @@ export class AgentRepository {
         provider: input.provider ?? "ollama",
         model: input.model ?? "qwen2.5:7b",
         systemPrompt: input.systemPrompt ?? null,
+        avatarUrl: input.avatarUrl ?? null,
         skillsJson: JSON.stringify(input.skills ?? [])
       })
       .run();
@@ -98,6 +103,7 @@ export class AgentRepository {
         provider: agents.provider,
         model: agents.model,
         systemPrompt: agents.systemPrompt,
+        avatarUrl: agents.avatarUrl,
         skillsJson: agents.skillsJson,
         createdAt: agents.createdAt
       })
@@ -119,6 +125,7 @@ export class AgentRepository {
       provider: ProviderType;
       model: string;
       systemPrompt?: string | null;
+      avatarUrl?: string | null;
       skills?: string[];
     }
   ): boolean {
@@ -139,6 +146,7 @@ export class AgentRepository {
         provider: payload.provider,
         model: payload.model,
         systemPrompt: payload.systemPrompt ?? null,
+        avatarUrl: payload.avatarUrl ?? null,
         skillsJson: JSON.stringify(payload.skills ?? [])
       })
       .where(eq(agents.id, id))

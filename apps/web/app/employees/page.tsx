@@ -1,7 +1,8 @@
 "use client";
 
-import type { FormEvent } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
+import { Pencil, Plus, Trash2, Upload, X } from "lucide-react";
 import { AppShell } from "../../components/app-shell";
 import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import { Badge } from "../../components/ui/badge";
@@ -18,8 +19,10 @@ import {
   deleteAgent,
   fetchAgents,
   fetchSkills,
+  updateAgent,
   type AgentItem,
-  type ProviderType
+  type ProviderType,
+  type SkillItem
 } from "../../lib/api";
 import { ensureSessionToken } from "../../lib/session";
 
@@ -29,12 +32,56 @@ const providerModels: Record<ProviderType, string> = {
   google: "gemini-2.5-flash"
 };
 
+const presetAvatars = ["🤖", "🧠", "📊", "🛰", "🛡", "🔥", "🧩", "🦉"];
+
+function isImageAvatar(value: string): boolean {
+  return value.startsWith("data:image/") || value.startsWith("http://") || value.startsWith("https://");
+}
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).slice(0, 2);
+  if (parts.length === 0 || !parts[0]) {
+    return "FA";
+  }
+  return parts.map((part) => part[0]?.toUpperCase() ?? "").join("");
+}
+
+function AgentAvatar(props: { avatar: string | null | undefined; name: string }) {
+  const avatar = props.avatar ?? "";
+
+  if (avatar.startsWith("emoji:")) {
+    return (
+      <div className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-2xl">
+        {avatar.slice(6)}
+      </div>
+    );
+  }
+
+  if (avatar && isImageAvatar(avatar)) {
+    return (
+      <img
+        src={avatar}
+        alt={`${props.name} avatar`}
+        className="h-12 w-12 rounded-full border border-slate-200 object-cover"
+      />
+    );
+  }
+
+  return (
+    <div className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-sm font-semibold text-blue-700">
+      {getInitials(props.name)}
+    </div>
+  );
+}
+
 export default function EmployeesPage() {
   const [sessionToken, setSessionToken] = useState("");
   const [agents, setAgents] = useState<AgentItem[]>([]);
-  const [skills, setSkills] = useState<Array<{ id: string; name: string; enabled: number }>>([]);
+  const [skills, setSkills] = useState<SkillItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const [name, setName] = useState("");
@@ -42,6 +89,9 @@ export default function EmployeesPage() {
   const [model, setModel] = useState(providerModels.ollama);
   const [systemPrompt, setSystemPrompt] = useState("You are a helpful digital employee.");
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [avatarMode, setAvatarMode] = useState<"preset" | "upload">("preset");
+  const [selectedPresetAvatar, setSelectedPresetAvatar] = useState(presetAvatars[0]);
+  const [uploadedAvatar, setUploadedAvatar] = useState<string | null>(null);
 
   useEffect(() => {
     ensureSessionToken(createDevSession)
@@ -71,7 +121,87 @@ export default function EmployeesPage() {
     [skills]
   );
 
-  async function onCreate(event: FormEvent<HTMLFormElement>) {
+  const currentAvatarValue = useMemo(() => {
+    if (avatarMode === "upload" && uploadedAvatar) {
+      return uploadedAvatar;
+    }
+    return `emoji:${selectedPresetAvatar}`;
+  }, [avatarMode, selectedPresetAvatar, uploadedAvatar]);
+
+  function resetCreateForm() {
+    setName("");
+    setProvider("ollama");
+    setModel(providerModels.ollama);
+    setSystemPrompt("You are a helpful digital employee.");
+    setSelectedSkills([]);
+    setAvatarMode("preset");
+    setSelectedPresetAvatar(presetAvatars[0]);
+    setUploadedAvatar(null);
+  }
+
+  function openCreateModal() {
+    setError("");
+    setEditingAgentId(null);
+    resetCreateForm();
+    setCreateOpen(true);
+  }
+
+  function openEditModal(agent: AgentItem) {
+    setError("");
+    setEditingAgentId(agent.id);
+    setName(agent.name);
+    setProvider(agent.provider);
+    setModel(agent.model);
+    setSystemPrompt(agent.system_prompt ?? "You are a helpful digital employee.");
+    setSelectedSkills(agent.skills ?? []);
+
+    const avatar = agent.avatar_url ?? "";
+    if (avatar.startsWith("emoji:")) {
+      const emojiValue = avatar.slice(6);
+      setAvatarMode("preset");
+      setSelectedPresetAvatar(
+        presetAvatars.includes(emojiValue) ? emojiValue : presetAvatars[0]
+      );
+      setUploadedAvatar(null);
+    } else if (avatar) {
+      setAvatarMode("upload");
+      setUploadedAvatar(avatar);
+      setSelectedPresetAvatar(presetAvatars[0]);
+    } else {
+      setAvatarMode("preset");
+      setSelectedPresetAvatar(presetAvatars[0]);
+      setUploadedAvatar(null);
+    }
+
+    setCreateOpen(true);
+  }
+
+  async function onAvatarUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setError("Avatar file must be an image.");
+      return;
+    }
+
+    if (file.size > 1024 * 1024) {
+      setError("Avatar image must be <= 1MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setUploadedAvatar(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function onSubmitAgent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!name.trim()) {
       return;
@@ -79,21 +209,37 @@ export default function EmployeesPage() {
 
     setSaving(true);
     setError("");
+
     try {
-      const created = await createAgent({
-        sessionToken,
-        name: name.trim(),
-        provider,
-        model: model.trim(),
-        systemPrompt,
-        skills: selectedSkills
-      });
-      setAgents((prev) => [created, ...prev]);
-      setName("");
-      setSystemPrompt("You are a helpful digital employee.");
-      setSelectedSkills([]);
+      if (editingAgentId) {
+        const updated = await updateAgent({
+          sessionToken,
+          id: editingAgentId,
+          name: name.trim(),
+          provider,
+          model: model.trim(),
+          systemPrompt,
+          avatarUrl: currentAvatarValue,
+          skills: selectedSkills
+        });
+        setAgents((prev) => prev.map((agent) => (agent.id === updated.id ? updated : agent)));
+      } else {
+        const created = await createAgent({
+          sessionToken,
+          name: name.trim(),
+          provider,
+          model: model.trim(),
+          systemPrompt,
+          avatarUrl: currentAvatarValue,
+          skills: selectedSkills
+        });
+        setAgents((prev) => [created, ...prev]);
+      }
+      setCreateOpen(false);
+      setEditingAgentId(null);
+      resetCreateForm();
     } catch (createError) {
-      setError(createError instanceof Error ? createError.message : "Failed to create employee");
+      setError(createError instanceof Error ? createError.message : "Failed to save employee");
     } finally {
       setSaving(false);
     }
@@ -112,18 +258,123 @@ export default function EmployeesPage() {
     <AppShell
       active="employees"
       title="Digital Employees"
-      subtitle="Manage employee name, prompt, provider, model and bound skills."
     >
-      <section className="grid gap-4 lg:grid-cols-[380px_1fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Create Employee</CardTitle>
-            <CardDescription>
-              Configure one digital employee profile for channels and direct chat.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={onCreate} className="grid gap-3">
+      <section className="space-y-4">
+        <div className="flex items-center justify-end">
+          <Button
+            type="button"
+            onClick={openCreateModal}
+          >
+            <Plus className="h-4 w-4" />
+            Create Employee
+          </Button>
+        </div>
+
+        {loading ? (
+          <Card>
+            <CardContent className="py-6">
+              <p className="text-sm text-slate-500">Loading employees...</p>
+            </CardContent>
+          </Card>
+        ) : agents.length === 0 ? (
+          <Card>
+            <CardContent className="py-6">
+              <p className="text-sm text-slate-500">No employee yet. Create your first one.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {agents.map((agent) => (
+              <Card key={agent.id} className="border-slate-200">
+                <CardHeader className="space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <AgentAvatar avatar={agent.avatar_url} name={agent.name} />
+                      <div>
+                        <CardTitle className="text-base">{agent.name}</CardTitle>
+                        <CardDescription>
+                          {agent.provider} · {agent.model}
+                        </CardDescription>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(agent)}
+                        className="rounded-md p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                        aria-label={`Edit ${agent.name}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDelete(agent.id)}
+                        className="rounded-md p-1.5 text-slate-500 transition hover:bg-rose-50 hover:text-rose-600"
+                        aria-label={`Delete ${agent.name}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="max-h-24 overflow-hidden whitespace-pre-wrap text-xs text-slate-600">
+                    {agent.system_prompt || "(no prompt)"}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-1">
+                    {(agent.skills ?? []).length === 0 ? (
+                      <Badge variant="secondary">No skills</Badge>
+                    ) : (
+                      (agent.skills ?? []).map((skillId) => (
+                        <Badge key={skillId} variant="secondary">
+                          {skillId}
+                        </Badge>
+                      ))
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {error ? (
+          <Alert variant="destructive">
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
+      </section>
+
+      {createOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">
+                  {editingAgentId ? "Edit Employee" : "Create Employee"}
+                </h2>
+                <p className="text-sm text-slate-500">
+                  {editingAgentId
+                    ? "Update profile, model, skills and avatar."
+                    : "Configure one digital employee profile for channels and direct chat."}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="rounded-lg p-1 text-slate-500 transition hover:bg-slate-100"
+                onClick={() => {
+                  setCreateOpen(false);
+                  setEditingAgentId(null);
+                  resetCreateForm();
+                }}
+                aria-label="Close create employee modal"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={onSubmitAgent} className="grid gap-4 px-5 py-4">
               <div className="grid gap-2">
                 <Label htmlFor="employee-name">Name</Label>
                 <Input
@@ -135,31 +386,96 @@ export default function EmployeesPage() {
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="employee-provider">Provider</Label>
-                <Select
-                  id="employee-provider"
-                  value={provider}
-                  onChange={(event) => {
-                    const next = event.target.value as ProviderType;
-                    setProvider(next);
-                    setModel(providerModels[next]);
-                  }}
-                  options={[
-                    { value: "ollama", label: "Ollama" },
-                    { value: "openai", label: "OpenAI" },
-                    { value: "google", label: "Google Gemini" }
-                  ]}
-                />
+                <Label>Avatar</Label>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant={avatarMode === "preset" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setAvatarMode("preset")}
+                  >
+                    Preset
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={avatarMode === "upload" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setAvatarMode("upload")}
+                  >
+                    Upload
+                  </Button>
+                </div>
+
+                {avatarMode === "preset" ? (
+                  <div className="grid grid-cols-8 gap-2 rounded-lg border border-slate-200 p-2">
+                    {presetAvatars.map((avatar) => (
+                      <button
+                        key={avatar}
+                        type="button"
+                        onClick={() => setSelectedPresetAvatar(avatar)}
+                        className={
+                          selectedPresetAvatar === avatar
+                            ? "inline-flex h-10 w-10 items-center justify-center rounded-lg border border-blue-400 bg-blue-50 text-xl"
+                            : "inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-xl hover:border-blue-300"
+                        }
+                        aria-label={`Choose avatar ${avatar}`}
+                      >
+                        {avatar}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid gap-2 rounded-lg border border-slate-200 p-3">
+                    <Label htmlFor="employee-avatar-upload" className="text-xs text-slate-500">
+                      Image max 1MB
+                    </Label>
+                    <Input
+                      id="employee-avatar-upload"
+                      type="file"
+                      accept="image/*"
+                      onChange={onAvatarUpload}
+                    />
+                    {uploadedAvatar ? (
+                      <img
+                        src={uploadedAvatar}
+                        alt="Uploaded avatar preview"
+                        className="h-16 w-16 rounded-full border border-slate-200 object-cover"
+                      />
+                    ) : null}
+                    <p className="text-xs text-slate-500">PNG/JPG/WebP all supported.</p>
+                  </div>
+                )}
               </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="employee-model">Model</Label>
-                <Input
-                  id="employee-model"
-                  value={model}
-                  onChange={(event) => setModel(event.target.value)}
-                  placeholder="qwen3:8b"
-                />
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label htmlFor="employee-provider">Provider</Label>
+                  <Select
+                    id="employee-provider"
+                    value={provider}
+                    onChange={(event) => {
+                      const next = event.target.value as ProviderType;
+                      setProvider(next);
+                      setModel(providerModels[next]);
+                    }}
+                    options={[
+                      { value: "ollama", label: "Ollama" },
+                      { value: "openai", label: "OpenAI" },
+                      { value: "google", label: "Google Gemini" }
+                    ]}
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="employee-model">Model</Label>
+                  <Input
+                    id="employee-model"
+                    value={model}
+                    onChange={(event) => setModel(event.target.value)}
+                    placeholder="qwen3:8b"
+                  />
+                </div>
               </div>
 
               <div className="grid gap-2">
@@ -194,63 +510,27 @@ export default function EmployeesPage() {
                 </div>
               </div>
 
-              <Button type="submit" disabled={saving || !sessionToken}>
-                {saving ? <Spinner className="h-4 w-4" /> : null}
-                {saving ? "Creating..." : "Create Employee"}
-              </Button>
+              <div className="flex items-center justify-end gap-2 border-t border-slate-200 pt-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setCreateOpen(false);
+                    setEditingAgentId(null);
+                    resetCreateForm();
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={saving || !sessionToken || !name.trim()}>
+                  {saving ? <Spinner className="h-4 w-4" /> : <Upload className="h-4 w-4" />}
+                  {saving ? "Saving..." : editingAgentId ? "Save Changes" : "Create Employee"}
+                </Button>
+              </div>
             </form>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Employee List</CardTitle>
-            <CardDescription>
-              Active digital employees available in channels.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {loading ? (
-              <p className="text-sm text-slate-500">Loading employees...</p>
-            ) : agents.length === 0 ? (
-              <p className="text-sm text-slate-500">No employee yet.</p>
-            ) : (
-              agents.map((agent) => (
-                <div key={agent.id} className="rounded-lg border border-slate-200 p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">{agent.name}</p>
-                      <p className="text-xs text-slate-500">
-                        {agent.provider} · {agent.model}
-                      </p>
-                    </div>
-                    <Button variant="outline" size="sm" onClick={() => onDelete(agent.id)}>
-                      Delete
-                    </Button>
-                  </div>
-                  <p className="mt-2 whitespace-pre-wrap text-xs text-slate-600">
-                    {agent.system_prompt || "(no prompt)"}
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {(agent.skills ?? []).map((skillId) => (
-                      <Badge key={skillId} variant="secondary">
-                        {skillId}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              ))
-            )}
-
-            {error ? (
-              <Alert variant="destructive">
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            ) : null}
-          </CardContent>
-        </Card>
-      </section>
+          </div>
+        </div>
+      ) : null}
     </AppShell>
   );
 }

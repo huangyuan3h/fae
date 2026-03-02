@@ -56,6 +56,7 @@ export interface AgentItem {
   provider: ProviderType;
   model: string;
   system_prompt?: string | null;
+  avatar_url?: string | null;
   skills: string[];
 }
 
@@ -171,6 +172,7 @@ export async function createAgent(params: {
   provider?: ProviderType;
   model?: string;
   systemPrompt?: string;
+  avatarUrl?: string | null;
   skills?: string[];
 }): Promise<AgentItem> {
   const result = await requestJson<AgentItem>(
@@ -182,6 +184,7 @@ export async function createAgent(params: {
         provider: params.provider,
         model: params.model,
         systemPrompt: params.systemPrompt,
+        avatarUrl: params.avatarUrl ?? null,
         skills: params.skills ?? []
       })
     },
@@ -202,6 +205,7 @@ export async function updateAgent(params: {
   provider: ProviderType;
   model: string;
   systemPrompt?: string | null;
+  avatarUrl?: string | null;
   skills?: string[];
 }): Promise<AgentItem> {
   const result = await requestJson<AgentItem>(
@@ -213,6 +217,7 @@ export async function updateAgent(params: {
         provider: params.provider,
         model: params.model,
         systemPrompt: params.systemPrompt ?? null,
+        avatarUrl: params.avatarUrl ?? null,
         skills: params.skills ?? []
       })
     },

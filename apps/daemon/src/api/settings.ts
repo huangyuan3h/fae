@@ -9,23 +9,17 @@ const updateOllamaSettingsSchema = z.object({
   baseUrl: z.string().url()
 });
 
+const providerConfigSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  type: z.enum(["ollama", "openai", "google"]),
+  apiKey: z.string().optional().default(""),
+  baseUrl: z.string().url(),
+  enabled: z.boolean().optional().default(true)
+});
+
 const providerSettingsSchema = z.object({
-  defaultProvider: z.enum(["ollama", "openai", "google"]),
-  ollama: z.object({
-    baseUrl: z.string().url()
-  }),
-  openai: z.object({
-    apiKey: z.string().optional().default(""),
-    baseUrl: z.string().url().optional().default("https://api.openai.com/v1")
-  }),
-  google: z.object({
-    apiKey: z.string().optional().default(""),
-    baseUrl: z
-      .string()
-      .url()
-      .optional()
-      .default("https://generativelanguage.googleapis.com/v1beta")
-  })
+  providerConfigs: z.array(providerConfigSchema).default([])
 });
 
 export const settingsRoutes = new Hono<AppBindings>();

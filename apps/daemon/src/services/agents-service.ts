@@ -18,6 +18,7 @@ export class AgentsService {
     provider?: ProviderType;
     model?: string;
     systemPrompt?: string;
+    avatarUrl?: string | null;
     skills?: string[];
   }) {
     return this.repo.create(input);
@@ -30,6 +31,7 @@ export class AgentsService {
       provider: ProviderType;
       model: string;
       systemPrompt?: string | null;
+      avatarUrl?: string | null;
       skills?: string[];
     }
   ) {

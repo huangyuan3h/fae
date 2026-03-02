@@ -9,6 +9,7 @@ export const agents = sqliteTable("agents", {
   provider: text("provider").notNull().default("ollama"),
   model: text("model").default("qwen2.5:7b"),
   systemPrompt: text("system_prompt"),
+  avatarUrl: text("avatar_url"),
   skillsJson: text("skills_json").notNull().default("[]"),
   createdAt: integer("created_at").default(nowUnix)
 });

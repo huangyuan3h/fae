@@ -19,7 +19,7 @@ import { cn } from "../lib/utils";
 
 interface AppShellProps {
   title: string;
-  subtitle: string;
+  subtitle?: string;
   children: React.ReactNode;
   active: "chat" | "settings" | "providers" | "employees" | "channels" | "skills" | "login";
 }
@@ -195,9 +195,11 @@ export function AppShell({ title, subtitle, children, active }: AppShellProps) {
         </header>
 
         <section className="flex-1 p-4 sm:p-6">
-          <div className="mb-4">
-            <p className="text-sm text-slate-500">{subtitle}</p>
-          </div>
+          {subtitle ? (
+            <div className="mb-4">
+              <p className="text-sm text-slate-500">{subtitle}</p>
+            </div>
+          ) : null}
           <div className="h-full">
             {children}
           </div>

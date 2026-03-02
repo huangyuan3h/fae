@@ -10,6 +10,7 @@ const createAgentSchema = z.object({
   provider: z.enum(["ollama", "openai", "google"]).optional(),
   model: z.string().min(1).optional(),
   systemPrompt: z.string().optional(),
+  avatarUrl: z.string().nullable().optional(),
   skills: z.array(z.string().min(1)).optional()
 });
 
@@ -18,6 +19,7 @@ const updateAgentSchema = z.object({
   provider: z.enum(["ollama", "openai", "google"]),
   model: z.string().min(1),
   systemPrompt: z.string().nullable().optional(),
+  avatarUrl: z.string().nullable().optional(),
   skills: z.array(z.string().min(1)).optional()
 });
 

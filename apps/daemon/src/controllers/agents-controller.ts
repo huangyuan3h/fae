@@ -15,6 +15,7 @@ export class AgentsController {
       provider?: "ollama" | "openai" | "google";
       model?: string;
       systemPrompt?: string;
+      avatarUrl?: string | null;
       skills?: string[];
     }
   ) {
@@ -31,6 +32,7 @@ export class AgentsController {
       provider: "ollama" | "openai" | "google";
       model: string;
       systemPrompt?: string | null;
+      avatarUrl?: string | null;
       skills?: string[];
     }
   ) {
