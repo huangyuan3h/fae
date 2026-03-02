@@ -8,6 +8,7 @@ import type { AgentRecord } from "../core/agent";
 export interface AgentForChat {
   id: string;
   provider: ProviderType | null;
+  provider_config_id: string | null;
   model: string;
   system_prompt: string | null;
   skills_json: string | null;
@@ -34,6 +35,7 @@ function mapAgentRow(row: {
   id: string;
   name: string;
   provider: string;
+  providerConfigId: string | null;
   model: string | null;
   systemPrompt: string | null;
   avatarUrl: string | null;
@@ -44,6 +46,7 @@ function mapAgentRow(row: {
     id: row.id,
     name: row.name,
     provider: (row.provider as ProviderType) ?? "ollama",
+    provider_config_id: row.providerConfigId,
     model: row.model ?? "qwen2.5:7b",
     system_prompt: row.systemPrompt,
     avatar_url: row.avatarUrl,
@@ -61,6 +64,7 @@ export class AgentRepository {
         id: agents.id,
         name: agents.name,
         provider: agents.provider,
+        providerConfigId: agents.providerConfigId,
         model: agents.model,
         systemPrompt: agents.systemPrompt,
         avatarUrl: agents.avatarUrl,
@@ -77,6 +81,7 @@ export class AgentRepository {
   create(input: {
     name: string;
     provider?: ProviderType;
+    providerConfigId?: string | null;
     model?: string;
     systemPrompt?: string;
     avatarUrl?: string | null;
@@ -89,6 +94,7 @@ export class AgentRepository {
         id,
         name: input.name,
         provider: input.provider ?? "ollama",
+        providerConfigId: input.providerConfigId ?? null,
         model: input.model ?? "qwen2.5:7b",
         systemPrompt: input.systemPrompt ?? null,
         avatarUrl: input.avatarUrl ?? null,
@@ -101,6 +107,7 @@ export class AgentRepository {
         id: agents.id,
         name: agents.name,
         provider: agents.provider,
+        providerConfigId: agents.providerConfigId,
         model: agents.model,
         systemPrompt: agents.systemPrompt,
         avatarUrl: agents.avatarUrl,
@@ -123,6 +130,7 @@ export class AgentRepository {
     payload: {
       name: string;
       provider: ProviderType;
+      providerConfigId?: string | null;
       model: string;
       systemPrompt?: string | null;
       avatarUrl?: string | null;
@@ -144,6 +152,7 @@ export class AgentRepository {
       .set({
         name: payload.name,
         provider: payload.provider,
+        providerConfigId: payload.providerConfigId ?? null,
         model: payload.model,
         systemPrompt: payload.systemPrompt ?? null,
         avatarUrl: payload.avatarUrl ?? null,
@@ -176,6 +185,7 @@ export class AgentRepository {
       .select({
         id: agents.id,
         provider: agents.provider,
+        provider_config_id: agents.providerConfigId,
         model: agents.model,
         system_prompt: agents.systemPrompt,
         skills_json: agents.skillsJson
@@ -188,6 +198,7 @@ export class AgentRepository {
       ? {
           id: row.id,
           provider: row.provider as ProviderType,
+          provider_config_id: row.provider_config_id,
           model: row.model ?? "qwen2.5:7b",
           system_prompt: row.system_prompt,
           skills_json: row.skills_json

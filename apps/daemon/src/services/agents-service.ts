@@ -16,6 +16,7 @@ export class AgentsService {
   create(input: {
     name: string;
     provider?: ProviderType;
+    providerConfigId?: string | null;
     model?: string;
     systemPrompt?: string;
     avatarUrl?: string | null;
@@ -29,6 +30,7 @@ export class AgentsService {
     payload: {
       name: string;
       provider: ProviderType;
+      providerConfigId?: string | null;
       model: string;
       systemPrompt?: string | null;
       avatarUrl?: string | null;

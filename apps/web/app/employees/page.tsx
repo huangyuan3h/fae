@@ -19,8 +19,10 @@ import {
   deleteAgent,
   fetchAgents,
   fetchSkills,
+  getProviderSettings,
   updateAgent,
   type AgentItem,
+  type ProviderConfig,
   type ProviderType,
   type SkillItem
 } from "../../lib/api";
@@ -78,6 +80,7 @@ export default function EmployeesPage() {
   const [sessionToken, setSessionToken] = useState("");
   const [agents, setAgents] = useState<AgentItem[]>([]);
   const [skills, setSkills] = useState<SkillItem[]>([]);
+  const [providerConfigs, setProviderConfigs] = useState<ProviderConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -85,6 +88,7 @@ export default function EmployeesPage() {
   const [error, setError] = useState("");
 
   const [name, setName] = useState("");
+  const [selectedProviderConfigId, setSelectedProviderConfigId] = useState("");
   const [provider, setProvider] = useState<ProviderType>("ollama");
   const [model, setModel] = useState(providerModels.ollama);
   const [systemPrompt, setSystemPrompt] = useState("You are a helpful digital employee.");
@@ -105,10 +109,15 @@ export default function EmployeesPage() {
     }
 
     setLoading(true);
-    Promise.all([fetchAgents(sessionToken), fetchSkills(sessionToken)])
-      .then(([agentRows, skillRows]) => {
+    Promise.all([
+      fetchAgents(sessionToken),
+      fetchSkills(sessionToken),
+      getProviderSettings(sessionToken)
+    ])
+      .then(([agentRows, skillRows, providerSettings]) => {
         setAgents(agentRows);
         setSkills(skillRows);
+        setProviderConfigs(providerSettings.providerConfigs);
       })
       .catch((loadError) => {
         setError(loadError instanceof Error ? loadError.message : "Failed to load employees");
@@ -121,6 +130,39 @@ export default function EmployeesPage() {
     [skills]
   );
 
+  const configuredProviders = useMemo(
+    () => providerConfigs.filter((config) => config.enabled),
+    [providerConfigs]
+  );
+
+  const providerSelectOptions = useMemo(
+    () =>
+      configuredProviders.map((config) => ({
+        value: config.id,
+        label: `${config.name} (${config.type})`
+      })),
+    [configuredProviders]
+  );
+
+  useEffect(() => {
+    if (configuredProviders.length === 0) {
+      return;
+    }
+    if (!configuredProviders.some((config) => config.id === selectedProviderConfigId)) {
+      const nextConfig = configuredProviders[0];
+      if (!nextConfig) {
+        return;
+      }
+      setSelectedProviderConfigId(nextConfig.id);
+      setProvider(nextConfig.type);
+      if (nextConfig.type === "ollama") {
+        setModel(nextConfig.modelId?.trim() ?? "");
+      } else {
+        setModel(providerModels[nextConfig.type]);
+      }
+    }
+  }, [configuredProviders, selectedProviderConfigId]);
+
   const currentAvatarValue = useMemo(() => {
     if (avatarMode === "upload" && uploadedAvatar) {
       return uploadedAvatar;
@@ -129,9 +171,16 @@ export default function EmployeesPage() {
   }, [avatarMode, selectedPresetAvatar, uploadedAvatar]);
 
   function resetCreateForm() {
+    const defaultConfig = configuredProviders[0] ?? null;
+    const defaultProvider = defaultConfig?.type ?? "ollama";
     setName("");
-    setProvider("ollama");
-    setModel(providerModels.ollama);
+    setSelectedProviderConfigId(defaultConfig?.id ?? "");
+    setProvider(defaultProvider);
+    if (defaultConfig?.type === "ollama") {
+      setModel(defaultConfig.modelId?.trim() ?? "");
+    } else {
+      setModel(providerModels[defaultProvider]);
+    }
     setSystemPrompt("You are a helpful digital employee.");
     setSelectedSkills([]);
     setAvatarMode("preset");
@@ -150,7 +199,13 @@ export default function EmployeesPage() {
     setError("");
     setEditingAgentId(agent.id);
     setName(agent.name);
-    setProvider(agent.provider);
+    const matchedConfig =
+      configuredProviders.find((config) => config.id === (agent.provider_config_id ?? "")) ??
+      configuredProviders.find((config) => config.type === agent.provider) ??
+      null;
+
+    setSelectedProviderConfigId(matchedConfig?.id ?? "");
+    setProvider(matchedConfig?.type ?? agent.provider);
     setModel(agent.model);
     setSystemPrompt(agent.system_prompt ?? "You are a helpful digital employee.");
     setSelectedSkills(agent.skills ?? []);
@@ -206,6 +261,13 @@ export default function EmployeesPage() {
     if (!name.trim()) {
       return;
     }
+    const selectedConfig = configuredProviders.find(
+      (config) => config.id === selectedProviderConfigId
+    );
+    if (!selectedConfig) {
+      setError("Please configure a provider first.");
+      return;
+    }
 
     setSaving(true);
     setError("");
@@ -216,8 +278,13 @@ export default function EmployeesPage() {
           sessionToken,
           id: editingAgentId,
           name: name.trim(),
-          provider,
-          model: model.trim(),
+          provider: selectedConfig.type,
+          providerConfigId: selectedConfig.id,
+          model:
+            model.trim() ||
+            (selectedConfig.type === "ollama"
+              ? selectedConfig.modelId?.trim() || "qwen3:8b"
+              : providerModels[selectedConfig.type]),
           systemPrompt,
           avatarUrl: currentAvatarValue,
           skills: selectedSkills
@@ -227,8 +294,13 @@ export default function EmployeesPage() {
         const created = await createAgent({
           sessionToken,
           name: name.trim(),
-          provider,
-          model: model.trim(),
+          provider: selectedConfig.type,
+          providerConfigId: selectedConfig.id,
+          model:
+            model.trim() ||
+            (selectedConfig.type === "ollama"
+              ? selectedConfig.modelId?.trim() || "qwen3:8b"
+              : providerModels[selectedConfig.type]),
           systemPrompt,
           avatarUrl: currentAvatarValue,
           skills: selectedSkills
@@ -453,17 +525,25 @@ export default function EmployeesPage() {
                   <Label htmlFor="employee-provider">Provider</Label>
                   <Select
                     id="employee-provider"
-                    value={provider}
+                    value={selectedProviderConfigId}
                     onChange={(event) => {
-                      const next = event.target.value as ProviderType;
-                      setProvider(next);
-                      setModel(providerModels[next]);
+                      const nextId = event.target.value;
+                      setSelectedProviderConfigId(nextId);
+                      const nextConfig = configuredProviders.find((config) => config.id === nextId);
+                      if (nextConfig) {
+                        setProvider(nextConfig.type);
+                        if (nextConfig.type === "ollama") {
+                          setModel(nextConfig.modelId?.trim() ?? "");
+                        } else {
+                          setModel(providerModels[nextConfig.type]);
+                        }
+                      }
                     }}
-                    options={[
-                      { value: "ollama", label: "Ollama" },
-                      { value: "openai", label: "OpenAI" },
-                      { value: "google", label: "Google Gemini" }
-                    ]}
+                    options={
+                      providerSelectOptions.length > 0
+                        ? providerSelectOptions
+                        : [{ value: "", label: "No configured provider" }]
+                    }
                   />
                 </div>
 
@@ -522,7 +602,16 @@ export default function EmployeesPage() {
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={saving || !sessionToken || !name.trim()}>
+                <Button
+                  type="submit"
+                  disabled={
+                    saving ||
+                    !sessionToken ||
+                    !name.trim() ||
+                    providerSelectOptions.length === 0 ||
+                    !selectedProviderConfigId
+                  }
+                >
                   {saving ? <Spinner className="h-4 w-4" /> : <Upload className="h-4 w-4" />}
                   {saving ? "Saving..." : editingAgentId ? "Save Changes" : "Create Employee"}
                 </Button>

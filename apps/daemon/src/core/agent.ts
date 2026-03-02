@@ -7,6 +7,7 @@ export interface AgentRecord {
   id: string;
   name: string;
   provider: "ollama" | "openai" | "google";
+  provider_config_id: string | null;
   model: string;
   system_prompt: string | null;
   avatar_url: string | null;
@@ -18,6 +19,7 @@ interface AgentRow {
   id: string;
   name: string;
   provider: "ollama" | "openai" | "google";
+  provider_config_id: string | null;
   model: string;
   system_prompt: string | null;
   avatar_url: string | null;
@@ -47,6 +49,7 @@ function mapRow(row: AgentRow): AgentRecord {
     id: row.id,
     name: row.name,
     provider: row.provider,
+    provider_config_id: row.provider_config_id,
     model: row.model,
     system_prompt: row.system_prompt,
     avatar_url: row.avatar_url,
@@ -61,6 +64,7 @@ export function listAgents(db: DB): AgentRecord[] {
       id: agents.id,
       name: agents.name,
       provider: agents.provider,
+      provider_config_id: agents.providerConfigId,
       model: agents.model,
       system_prompt: agents.systemPrompt,
       avatar_url: agents.avatarUrl,
@@ -79,6 +83,7 @@ export function createAgent(
   input: {
     name: string;
     provider?: "ollama" | "openai" | "google";
+    providerConfigId?: string | null;
     model?: string;
     systemPrompt?: string;
     avatarUrl?: string | null;
@@ -87,6 +92,7 @@ export function createAgent(
 ): AgentRecord {
   const id = randomUUID();
   const provider = input.provider ?? "ollama";
+  const providerConfigId = input.providerConfigId ?? null;
   const model = input.model ?? "qwen2.5:7b";
   const systemPrompt = input.systemPrompt ?? null;
   const avatarUrl = input.avatarUrl ?? null;
@@ -98,6 +104,7 @@ export function createAgent(
       id,
       name: input.name,
       provider,
+      providerConfigId,
       model,
       systemPrompt,
       avatarUrl,
@@ -110,6 +117,7 @@ export function createAgent(
       id: agents.id,
       name: agents.name,
       provider: agents.provider,
+      provider_config_id: agents.providerConfigId,
       model: agents.model,
       system_prompt: agents.systemPrompt,
       avatar_url: agents.avatarUrl,

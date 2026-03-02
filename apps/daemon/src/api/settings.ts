@@ -15,6 +15,7 @@ const providerConfigSchema = z.object({
   type: z.enum(["ollama", "openai", "google"]),
   apiKey: z.string().optional().default(""),
   baseUrl: z.string().url(),
+  modelId: z.string().optional().default(""),
   enabled: z.boolean().optional().default(true)
 });
 

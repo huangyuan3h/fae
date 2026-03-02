@@ -50,10 +50,21 @@ async function requestJson<T>(
 
 export type ProviderType = "ollama" | "openai" | "google";
 
+export interface ProviderConfig {
+  id: string;
+  name: string;
+  type: ProviderType;
+  apiKey: string;
+  baseUrl: string;
+  modelId?: string;
+  enabled: boolean;
+}
+
 export interface AgentItem {
   id: string;
   name: string;
   provider: ProviderType;
+  provider_config_id?: string | null;
   model: string;
   system_prompt?: string | null;
   avatar_url?: string | null;
@@ -61,18 +72,7 @@ export interface AgentItem {
 }
 
 export interface ProviderSettings {
-  defaultProvider: ProviderType;
-  ollama: {
-    baseUrl: string;
-  };
-  openai: {
-    apiKey: string;
-    baseUrl: string;
-  };
-  google: {
-    apiKey: string;
-    baseUrl: string;
-  };
+  providerConfigs: ProviderConfig[];
 }
 
 export interface ChannelMessage {
@@ -170,6 +170,7 @@ export async function createAgent(params: {
   sessionToken: string;
   name: string;
   provider?: ProviderType;
+  providerConfigId?: string | null;
   model?: string;
   systemPrompt?: string;
   avatarUrl?: string | null;
@@ -182,6 +183,7 @@ export async function createAgent(params: {
       body: JSON.stringify({
         name: params.name,
         provider: params.provider,
+        providerConfigId: params.providerConfigId ?? null,
         model: params.model,
         systemPrompt: params.systemPrompt,
         avatarUrl: params.avatarUrl ?? null,
@@ -203,6 +205,7 @@ export async function updateAgent(params: {
   id: string;
   name: string;
   provider: ProviderType;
+  providerConfigId?: string | null;
   model: string;
   systemPrompt?: string | null;
   avatarUrl?: string | null;
@@ -215,6 +218,7 @@ export async function updateAgent(params: {
       body: JSON.stringify({
         name: params.name,
         provider: params.provider,
+        providerConfigId: params.providerConfigId ?? null,
         model: params.model,
         systemPrompt: params.systemPrompt ?? null,
         avatarUrl: params.avatarUrl ?? null,

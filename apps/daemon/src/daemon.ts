@@ -81,7 +81,7 @@ async function bootstrap(): Promise<void> {
         return allowedOrigins.has(origin) ? origin : "";
       },
       allowHeaders: ["Content-Type", "Authorization"],
-      allowMethods: ["GET", "POST", "PUT", "OPTIONS"]
+      allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     })
   );
 

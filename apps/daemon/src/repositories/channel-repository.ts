@@ -33,6 +33,7 @@ export interface ChannelMemberRow {
   id: string;
   name: string;
   provider: ProviderType | null;
+  provider_config_id: string | null;
   model: string;
   system_prompt: string | null;
   skills_json: string | null;
@@ -233,6 +234,7 @@ export class ChannelRepository {
         id: agents.id,
         name: agents.name,
         provider: agents.provider,
+        provider_config_id: agents.providerConfigId,
         model: agents.model,
         system_prompt: agents.systemPrompt,
         skills_json: agents.skillsJson
@@ -247,6 +249,7 @@ export class ChannelRepository {
       id: row.id,
       name: row.name,
       provider: row.provider as ProviderType,
+      provider_config_id: row.provider_config_id,
       model: row.model ?? "qwen2.5:7b",
       system_prompt: row.system_prompt,
       skills_json: row.skills_json

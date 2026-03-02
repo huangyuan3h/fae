@@ -7,6 +7,7 @@ export const agents = sqliteTable("agents", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   provider: text("provider").notNull().default("ollama"),
+  providerConfigId: text("provider_config_id"),
   model: text("model").default("qwen2.5:7b"),
   systemPrompt: text("system_prompt"),
   avatarUrl: text("avatar_url"),

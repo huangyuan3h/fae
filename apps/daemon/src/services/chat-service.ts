@@ -86,7 +86,11 @@ export function buildAgentChatStream(params: {
   agentRepo.insertUserMessage(params.agentId, params.message);
 
   const providerSettings = getProviderSettings(params.db);
-  const provider = resolveProvider(agent.provider, providerSettings);
+  const provider = resolveProvider(
+    agent.provider,
+    providerSettings,
+    agent.provider_config_id
+  );
   const requestedSkillIds = parseSkillIds(agent.skills_json);
   const enabledSkillIds = agentRepo.enabledSkillIds();
   const tools = createSkillTools({
@@ -111,6 +115,7 @@ export function buildAgentChatStream(params: {
           model: getModelForProvider({
             provider,
             modelId: agent.model,
+            providerConfigId: agent.provider_config_id,
             settings: providerSettings
           }),
           system: agent.system_prompt ?? undefined,

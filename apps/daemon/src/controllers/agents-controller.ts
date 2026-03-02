@@ -13,6 +13,7 @@ export class AgentsController {
     payload: {
       name: string;
       provider?: "ollama" | "openai" | "google";
+      providerConfigId?: string | null;
       model?: string;
       systemPrompt?: string;
       avatarUrl?: string | null;
@@ -30,6 +31,7 @@ export class AgentsController {
     payload: {
       name: string;
       provider: "ollama" | "openai" | "google";
+      providerConfigId?: string | null;
       model: string;
       systemPrompt?: string | null;
       avatarUrl?: string | null;

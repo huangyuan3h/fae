@@ -81,8 +81,13 @@ export class ChannelsService {
 
       const result = streamText({
         model: getModelForProvider({
-          provider: resolveProvider(member.provider, providerSettings),
+          provider: resolveProvider(
+            member.provider,
+            providerSettings,
+            member.provider_config_id
+          ),
           modelId: member.model,
+          providerConfigId: member.provider_config_id,
           settings: providerSettings
         }),
         system: member.system_prompt ?? undefined,

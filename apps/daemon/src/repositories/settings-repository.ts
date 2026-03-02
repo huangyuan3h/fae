@@ -23,6 +23,7 @@ export interface ProviderConfigDTO {
   type: ProviderType;
   apiKey: string;
   baseUrl: string;
+  modelId: string;
   enabled: boolean;
 }
 
@@ -69,8 +70,12 @@ export class SettingsRepository {
     const index = next.findIndex((config) => config.type === "ollama");
 
     if (index >= 0) {
+      const current = next[index];
+      if (!current) {
+        return;
+      }
       next[index] = {
-        ...next[index],
+        ...current,
         baseUrl
       };
     } else {
@@ -80,6 +85,7 @@ export class SettingsRepository {
         type: "ollama",
         apiKey: "",
         baseUrl,
+        modelId: "",
         enabled: true
       });
     }
@@ -110,6 +116,7 @@ export class SettingsRepository {
         type: "ollama",
         apiKey: "",
         baseUrl: this.getSetting(OLLAMA_BASE_URL_KEY) ?? defaultBaseUrl.ollama,
+        modelId: "",
         enabled: true
       }
     ];
@@ -123,6 +130,7 @@ export class SettingsRepository {
         type: "openai",
         apiKey: openaiApiKey,
         baseUrl: openaiBaseUrl,
+        modelId: "",
         enabled: true
       });
     }
@@ -136,6 +144,7 @@ export class SettingsRepository {
         type: "google",
         apiKey: googleApiKey,
         baseUrl: googleBaseUrl,
+        modelId: "",
         enabled: true
       });
     }
@@ -190,6 +199,7 @@ export class SettingsRepository {
     const baseUrlValue = typeof item.baseUrl === "string" && item.baseUrl.trim().length > 0
       ? item.baseUrl
       : defaultBaseUrl[type];
+    const modelIdValue = typeof item.modelId === "string" ? item.modelId.trim() : "";
     const enabledValue = typeof item.enabled === "boolean" ? item.enabled : true;
 
     return {
@@ -198,6 +208,7 @@ export class SettingsRepository {
       type,
       apiKey: apiKeyValue,
       baseUrl: baseUrlValue,
+      modelId: modelIdValue,
       enabled: enabledValue
     };
   }

@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS agents (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   provider TEXT NOT NULL DEFAULT 'ollama',
+  provider_config_id TEXT,
   model TEXT DEFAULT 'qwen2.5:7b',
   system_prompt TEXT,
   avatar_url TEXT,
@@ -106,6 +107,7 @@ export function initDatabase(params: {
     "ALTER TABLE agents ADD COLUMN skills_json TEXT NOT NULL DEFAULT '[]';"
   );
   safeExec(rawDb, "ALTER TABLE agents ADD COLUMN avatar_url TEXT;");
+  safeExec(rawDb, "ALTER TABLE agents ADD COLUMN provider_config_id TEXT;");
 
   const orm = drizzle(rawDb, { schema });
 

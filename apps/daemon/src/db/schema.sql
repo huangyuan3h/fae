@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS agents (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   provider TEXT NOT NULL DEFAULT 'ollama',
+  provider_config_id TEXT,
   model TEXT DEFAULT 'qwen2.5:7b',
   system_prompt TEXT,
   avatar_url TEXT,
