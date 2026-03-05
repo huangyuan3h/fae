@@ -28,12 +28,6 @@ import {
 } from "../../lib/api";
 import { ensureSessionToken } from "../../lib/session";
 
-const providerModels: Record<ProviderType, string> = {
-  ollama: "qwen3:8b",
-  openai: "gpt-4o-mini",
-  google: "gemini-2.5-flash"
-};
-
 const presetAvatars = ["🤖", "🧠", "📊", "🛰", "🛡", "🔥", "🧩", "🦉"];
 
 function isImageAvatar(value: string): boolean {
@@ -89,8 +83,7 @@ export default function EmployeesPage() {
 
   const [name, setName] = useState("");
   const [selectedProviderConfigId, setSelectedProviderConfigId] = useState("");
-  const [provider, setProvider] = useState<ProviderType>("ollama");
-  const [model, setModel] = useState(providerModels.ollama);
+  const [model, setModel] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("You are a helpful digital employee.");
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [avatarMode, setAvatarMode] = useState<"preset" | "upload">("preset");
@@ -154,12 +147,7 @@ export default function EmployeesPage() {
         return;
       }
       setSelectedProviderConfigId(nextConfig.id);
-      setProvider(nextConfig.type);
-      if (nextConfig.type === "ollama") {
-        setModel(nextConfig.modelId?.trim() ?? "");
-      } else {
-        setModel(providerModels[nextConfig.type]);
-      }
+      setModel(nextConfig.modelId?.trim() ?? "");
     }
   }, [configuredProviders, selectedProviderConfigId]);
 
@@ -172,15 +160,9 @@ export default function EmployeesPage() {
 
   function resetCreateForm() {
     const defaultConfig = configuredProviders[0] ?? null;
-    const defaultProvider = defaultConfig?.type ?? "ollama";
     setName("");
     setSelectedProviderConfigId(defaultConfig?.id ?? "");
-    setProvider(defaultProvider);
-    if (defaultConfig?.type === "ollama") {
-      setModel(defaultConfig.modelId?.trim() ?? "");
-    } else {
-      setModel(providerModels[defaultProvider]);
-    }
+    setModel(defaultConfig?.modelId?.trim() ?? "");
     setSystemPrompt("You are a helpful digital employee.");
     setSelectedSkills([]);
     setAvatarMode("preset");
@@ -205,7 +187,6 @@ export default function EmployeesPage() {
       null;
 
     setSelectedProviderConfigId(matchedConfig?.id ?? "");
-    setProvider(matchedConfig?.type ?? agent.provider);
     setModel(agent.model);
     setSystemPrompt(agent.system_prompt ?? "You are a helpful digital employee.");
     setSelectedSkills(agent.skills ?? []);
@@ -282,9 +263,8 @@ export default function EmployeesPage() {
           providerConfigId: selectedConfig.id,
           model:
             model.trim() ||
-            (selectedConfig.type === "ollama"
-              ? selectedConfig.modelId?.trim() || "qwen3:8b"
-              : providerModels[selectedConfig.type]),
+            selectedConfig.modelId?.trim() ||
+            "qwen3:8b",
           systemPrompt,
           avatarUrl: currentAvatarValue,
           skills: selectedSkills
@@ -298,9 +278,8 @@ export default function EmployeesPage() {
           providerConfigId: selectedConfig.id,
           model:
             model.trim() ||
-            (selectedConfig.type === "ollama"
-              ? selectedConfig.modelId?.trim() || "qwen3:8b"
-              : providerModels[selectedConfig.type]),
+            selectedConfig.modelId?.trim() ||
+            "qwen3:8b",
           systemPrompt,
           avatarUrl: currentAvatarValue,
           skills: selectedSkills
@@ -531,12 +510,7 @@ export default function EmployeesPage() {
                       setSelectedProviderConfigId(nextId);
                       const nextConfig = configuredProviders.find((config) => config.id === nextId);
                       if (nextConfig) {
-                        setProvider(nextConfig.type);
-                        if (nextConfig.type === "ollama") {
-                          setModel(nextConfig.modelId?.trim() ?? "");
-                        } else {
-                          setModel(providerModels[nextConfig.type]);
-                        }
+                        setModel(nextConfig.modelId?.trim() ?? "");
                       }
                     }}
                     options={
