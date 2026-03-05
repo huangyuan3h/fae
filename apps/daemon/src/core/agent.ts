@@ -6,7 +6,7 @@ import { agents } from "../db/schema";
 export interface AgentRecord {
   id: string;
   name: string;
-  provider: "ollama" | "openai" | "google";
+  provider: "ollama" | "openai" | "google" | "alibaba";
   provider_config_id: string | null;
   model: string;
   system_prompt: string | null;
@@ -18,7 +18,7 @@ export interface AgentRecord {
 interface AgentRow {
   id: string;
   name: string;
-  provider: "ollama" | "openai" | "google";
+  provider: "ollama" | "openai" | "google" | "alibaba";
   provider_config_id: string | null;
   model: string;
   system_prompt: string | null;
@@ -82,7 +82,7 @@ export function createAgent(
   db: DB,
   input: {
     name: string;
-    provider?: "ollama" | "openai" | "google";
+    provider?: "ollama" | "openai" | "google" | "alibaba";
     providerConfigId?: string | null;
     model?: string;
     systemPrompt?: string;

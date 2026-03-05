@@ -1,5 +1,6 @@
 import type { Context } from "hono";
 import type { AppBindings } from "../types";
+import type { ProviderType } from "../core/llm";
 import { AgentsService } from "../services/agents-service";
 
 export class AgentsController {
@@ -12,7 +13,7 @@ export class AgentsController {
     c: Context<AppBindings>,
     payload: {
       name: string;
-      provider?: "ollama" | "openai" | "google";
+      provider?: ProviderType;
       providerConfigId?: string | null;
       model?: string;
       systemPrompt?: string;
@@ -30,7 +31,7 @@ export class AgentsController {
     agentId: string,
     payload: {
       name: string;
-      provider: "ollama" | "openai" | "google";
+      provider: ProviderType;
       providerConfigId?: string | null;
       model: string;
       systemPrompt?: string | null;

@@ -7,7 +7,7 @@ const controller = new AgentsController();
 
 const createAgentSchema = z.object({
   name: z.string().min(1),
-  provider: z.enum(["ollama", "openai", "google"]).optional(),
+  provider: z.enum(["ollama", "openai", "google", "alibaba"]).optional(),
   providerConfigId: z.string().nullable().optional(),
   model: z.string().min(1).optional(),
   systemPrompt: z.string().optional(),
@@ -17,7 +17,7 @@ const createAgentSchema = z.object({
 
 const updateAgentSchema = z.object({
   name: z.string().min(1),
-  provider: z.enum(["ollama", "openai", "google"]),
+  provider: z.enum(["ollama", "openai", "google", "alibaba"]),
   providerConfigId: z.string().nullable().optional(),
   model: z.string().min(1),
   systemPrompt: z.string().nullable().optional(),
