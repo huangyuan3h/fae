@@ -48,7 +48,7 @@ async function requestJson<T>(
   return parsed;
 }
 
-export type ProviderType = "ollama" | "openai" | "google";
+export type ProviderType = "ollama" | "openai" | "google" | "alibaba";
 
 export interface ProviderConfig {
   id: string;

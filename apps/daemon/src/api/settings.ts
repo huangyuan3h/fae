@@ -12,7 +12,7 @@ const updateOllamaSettingsSchema = z.object({
 const providerConfigSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
-  type: z.enum(["ollama", "openai", "google"]),
+  type: z.enum(["ollama", "openai", "google", "alibaba"]),
   apiKey: z.string().optional().default(""),
   baseUrl: z.string().url(),
   modelId: z.string().optional().default(""),

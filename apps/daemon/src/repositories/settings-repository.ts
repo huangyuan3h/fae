@@ -14,7 +14,8 @@ const PROVIDER_CONFIGS_KEY = "provider.configs";
 const defaultBaseUrl: Record<ProviderType, string> = {
   ollama: "http://127.0.0.1:11434",
   openai: "https://api.openai.com/v1",
-  google: "https://generativelanguage.googleapis.com/v1beta"
+  google: "https://generativelanguage.googleapis.com/v1beta",
+  alibaba: "https://dashscope.aliyuncs.com/compatible-mode/v1"
 };
 
 export interface ProviderConfigDTO {
@@ -149,6 +150,20 @@ export class SettingsRepository {
       });
     }
 
+    const alibabaApiKey = this.getSetting("provider.alibaba.apiKey") ?? "";
+    const alibabaBaseUrl = this.getSetting("provider.alibaba.baseUrl") ?? defaultBaseUrl.alibaba;
+    if (alibabaApiKey || alibabaBaseUrl !== defaultBaseUrl.alibaba) {
+      legacy.push({
+        id: "legacy-alibaba",
+        name: "Alibaba Bailian Default",
+        type: "alibaba",
+        apiKey: alibabaApiKey,
+        baseUrl: alibabaBaseUrl,
+        modelId: "",
+        enabled: true
+      });
+    }
+
     return { providerConfigs: legacy };
   }
 
@@ -166,12 +181,15 @@ export class SettingsRepository {
     const firstOllama = firstByType("ollama");
     const firstOpenai = firstByType("openai");
     const firstGoogle = firstByType("google");
+    const firstAlibaba = firstByType("alibaba");
 
     this.upsertSetting(OLLAMA_BASE_URL_KEY, firstOllama?.baseUrl ?? defaultBaseUrl.ollama);
     this.upsertSetting(OPENAI_API_KEY, firstOpenai?.apiKey ?? "");
     this.upsertSetting(OPENAI_BASE_URL, firstOpenai?.baseUrl ?? defaultBaseUrl.openai);
     this.upsertSetting(GOOGLE_API_KEY, firstGoogle?.apiKey ?? "");
     this.upsertSetting(GOOGLE_BASE_URL, firstGoogle?.baseUrl ?? defaultBaseUrl.google);
+    this.upsertSetting("provider.alibaba.apiKey", firstAlibaba?.apiKey ?? "");
+    this.upsertSetting("provider.alibaba.baseUrl", firstAlibaba?.baseUrl ?? defaultBaseUrl.alibaba);
     this.upsertSetting(DEFAULT_PROVIDER, normalized[0]?.type ?? "ollama");
   }
 
@@ -185,7 +203,7 @@ export class SettingsRepository {
 
     const item = input as Record<string, unknown>;
     const type = item.type;
-    if (type !== "ollama" && type !== "openai" && type !== "google") {
+    if (type !== "ollama" && type !== "openai" && type !== "google" && type !== "alibaba") {
       return null;
     }
 

@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import type { DB } from "../db/types";
 import { settings } from "../db/schema";
 
-export type ProviderType = "ollama" | "openai" | "google";
+export type ProviderType = "ollama" | "openai" | "google" | "alibaba";
 
 interface ProviderSettings {
   providerConfigs: Array<{
@@ -153,6 +153,15 @@ export function getModelForProvider(params: {
     return provider.chat(resolvedModelId);
   }
 
+  if (params.provider === "alibaba") {
+    // 阿里云百炼平台兼容 OpenAI API 格式
+    const provider = createOpenAI({
+      apiKey: config?.apiKey ?? "",
+      baseURL: config?.baseUrl ?? "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    });
+    return provider.chat(resolvedModelId);
+  }
+
   const provider = createGoogleGenerativeAI({
     apiKey: config?.apiKey ?? "",
     baseURL: config?.baseUrl ?? "https://generativelanguage.googleapis.com/v1beta"
@@ -175,7 +184,7 @@ function normalizeProviderConfig(input: unknown): {
 
   const item = input as Record<string, unknown>;
   const type = item.type;
-  if (type !== "ollama" && type !== "openai" && type !== "google") {
+  if (type !== "ollama" && type !== "openai" && type !== "google" && type !== "alibaba") {
     return null;
   }
 
@@ -220,6 +229,9 @@ function defaultModelForProvider(type: ProviderType): string {
   }
   if (type === "google") {
     return "gemini-2.5-flash";
+  }
+  if (type === "alibaba") {
+    return "qwen-turbo";
   }
   return "qwen3:8b";
 }

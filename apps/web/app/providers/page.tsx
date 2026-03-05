@@ -25,19 +25,22 @@ import { ensureSessionToken } from "../../lib/session";
 const defaultBaseUrl: Record<ProviderType, string> = {
   ollama: "http://127.0.0.1:11434",
   openai: "",
-  google: ""
+  google: "",
+  alibaba: "https://dashscope.aliyuncs.com/compatible-mode/v1"
 };
 
 const defaultModelByType: Record<ProviderType, string> = {
   ollama: "",
   openai: "",
-  google: ""
+  google: "",
+  alibaba: "qwen-turbo"
 };
 
 const providerDescriptions: Record<ProviderType, string> = {
   ollama: "Run local models through Ollama with your local base URL.",
   openai: "Use OpenAI-hosted models with one or more API keys.",
-  google: "Use Google Gemini models with one or more API keys."
+  google: "Use Google Gemini models with one or more API keys.",
+  alibaba: "Use Alibaba Bailian (DashScope) models with API keys."
 };
 
 const emptySettings: ProviderSettings = {
@@ -50,6 +53,9 @@ function providerLabel(type: ProviderType): string {
   }
   if (type === "google") {
     return "Google Gemini";
+  }
+  if (type === "alibaba") {
+    return "Alibaba Bailian";
   }
   return "Ollama";
 }
@@ -161,7 +167,7 @@ export default function ProvidersPage() {
       type,
       apiKey: type === "ollama" ? "" : apiKey.trim(),
       baseUrl: normalizedBaseUrl,
-      modelId: type === "ollama" ? modelId.trim() : "",
+      modelId: type === "ollama" || type === "alibaba" ? modelId.trim() : "",
       enabled: true
     };
 
@@ -257,11 +263,11 @@ export default function ProvidersPage() {
                     </div>
                   ) : null}
 
-                  {config.type === "ollama" ? (
+                  {config.type === "ollama" || config.type === "alibaba" ? (
                     <div className="space-y-1">
                       <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Model ID</p>
                       <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                        {config.modelId || defaultModelByType.ollama}
+                        {config.modelId || defaultModelByType[config.type]}
                       </p>
                     </div>
                   ) : null}
@@ -331,9 +337,9 @@ export default function ProvidersPage() {
                     const nextType = event.target.value as ProviderType;
                     setType(nextType);
                     setBaseUrl(defaultBaseUrl[nextType]);
-                    if (nextType === "ollama") {
+                    if (nextType === "ollama" || nextType === "alibaba") {
                       setModelId((current) =>
-                        current.trim() ? current : defaultModelByType.ollama
+                        current.trim() ? current : defaultModelByType[nextType]
                       );
                       setApiKey("");
                     } else {
@@ -343,7 +349,8 @@ export default function ProvidersPage() {
                   options={[
                     { value: "ollama", label: "Ollama" },
                     { value: "openai", label: "OpenAI" },
-                    { value: "google", label: "Google Gemini" }
+                    { value: "google", label: "Google Gemini" },
+                    { value: "alibaba", label: "Alibaba Bailian" }
                   ]}
                 />
               </div>
@@ -373,14 +380,14 @@ export default function ProvidersPage() {
                 />
               </div>
 
-              {type === "ollama" ? (
+              {type === "ollama" || type === "alibaba" ? (
                 <div className="grid gap-2">
                   <Label htmlFor="provider-model-id">Model ID</Label>
                   <Input
                     id="provider-model-id"
                     value={modelId}
                     onChange={(event) => setModelId(event.target.value)}
-                    placeholder="qwen3:8b"
+                    placeholder={type === "ollama" ? "qwen3:8b" : "qwen-turbo"}
                   />
                 </div>
               ) : null}
@@ -404,7 +411,7 @@ export default function ProvidersPage() {
                     !name.trim() ||
                     (type !== "ollama" && !apiKey.trim()) ||
                     (type === "ollama" && !baseUrl.trim()) ||
-                    (type === "ollama" && !modelId.trim())
+                    ((type === "ollama" || type === "alibaba") && !modelId.trim())
                   }
                 >
                   {saving ? <Spinner className="h-4 w-4" /> : null}
