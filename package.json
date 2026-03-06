@@ -6,11 +6,15 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "bun run --filter '@fae/*' dev",
-    "dev:daemon": "bun run --cwd apps/daemon dev",
+    "dev": "concurrently \"npm run dev:agent\" \"npm run dev:web\"",
+    "dev:agent": "cd apps/fae-agent && cargo run",
     "dev:web": "bun run --cwd apps/web dev",
-    "build:daemon": "bun run --cwd apps/daemon build",
+    "test": "cd apps/fae-agent && cargo test",
+    "build:agent": "cd apps/fae-agent && cargo build --release",
     "build:web": "bun run --cwd apps/web build",
-    "typecheck": "bun run --cwd apps/daemon typecheck && bun run --cwd apps/web typecheck"
+    "typecheck": "bun run --cwd apps/web typecheck"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
   }
 }

@@ -1,0 +1,12 @@
+{
+  "name": "@fae/agent",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "cargo run",
+    "build": "cargo build --release",
+    "start": "cargo run --release",
+    "test-api": "curl -s http://localhost:3001/api/status"
+  },
+  "type": "module"
+}

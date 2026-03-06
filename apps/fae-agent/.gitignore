@@ -1,0 +1,27 @@
+# Runtime data
+target/
+.env
+
+# SQLite database
+*.db
+*.db-journal
+*.db-wal
+
+# VS Code
+.vscode/
+
+# Logs
+logs
+*.log
+
+# Temporary files
+.DS_Store
+Thumbs.db
+
+# Build outputs
+/dist
+/build
+/out
+
+# Rust specific
+Cargo.lock
