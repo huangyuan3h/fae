@@ -167,7 +167,7 @@ export default function ProvidersPage() {
       type,
       apiKey: type === "ollama" ? "" : apiKey.trim(),
       baseUrl: normalizedBaseUrl,
-      modelId: type === "ollama" || type === "alibaba" ? modelId.trim() : "",
+      modelId: modelId.trim(),
       enabled: true
     };
 
@@ -337,13 +337,18 @@ export default function ProvidersPage() {
                     const nextType = event.target.value as ProviderType;
                     setType(nextType);
                     setBaseUrl(defaultBaseUrl[nextType]);
-                    if (nextType === "ollama" || nextType === "alibaba") {
+                    if (nextType === "ollama") {
                       setModelId((current) =>
                         current.trim() ? current : defaultModelByType[nextType]
                       );
                       setApiKey("");
+                    } else if (nextType === "alibaba") {
+                      setModelId((current) =>
+                        current.trim() ? current : defaultModelByType[nextType]
+                      );
                     } else {
-                      setModelId("");
+                      // openai, google: clear modelId but allow user to set it
+                      setModelId(defaultModelByType[nextType]);
                     }
                   }}
                   options={[
@@ -380,17 +385,20 @@ export default function ProvidersPage() {
                 />
               </div>
 
-              {type === "ollama" || type === "alibaba" ? (
-                <div className="grid gap-2">
-                  <Label htmlFor="provider-model-id">Model ID</Label>
-                  <Input
-                    id="provider-model-id"
-                    value={modelId}
-                    onChange={(event) => setModelId(event.target.value)}
-                    placeholder={type === "ollama" ? "qwen3:8b" : "qwen-turbo"}
-                  />
-                </div>
-              ) : null}
+              <div className="grid gap-2">
+                <Label htmlFor="provider-model-id">Model ID</Label>
+                <Input
+                  id="provider-model-id"
+                  value={modelId}
+                  onChange={(event) => setModelId(event.target.value)}
+                  placeholder={
+                    type === "ollama" ? "qwen3:8b" :
+                    type === "openai" ? "gpt-4o-mini" :
+                    type === "google" ? "gemini-2.5-flash" :
+                    "qwen-turbo"
+                  }
+                />
+              </div>
 
               <div className="flex items-center justify-end gap-2 border-t border-slate-200 pt-3">
                 <Button
@@ -411,7 +419,7 @@ export default function ProvidersPage() {
                     !name.trim() ||
                     (type !== "ollama" && !apiKey.trim()) ||
                     (type === "ollama" && !baseUrl.trim()) ||
-                    ((type === "ollama" || type === "alibaba") && !modelId.trim())
+                    !modelId.trim()
                   }
                 >
                   {saving ? <Spinner className="h-4 w-4" /> : null}

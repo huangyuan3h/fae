@@ -499,7 +499,7 @@ export default function EmployeesPage() {
                 )}
               </div>
 
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2">
                 <div className="grid gap-2">
                   <Label htmlFor="employee-provider">Provider</Label>
                   <Select
@@ -519,16 +519,9 @@ export default function EmployeesPage() {
                         : [{ value: "", label: "No configured provider" }]
                     }
                   />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="employee-model">Model</Label>
-                  <Input
-                    id="employee-model"
-                    value={model}
-                    onChange={(event) => setModel(event.target.value)}
-                    placeholder="qwen3:8b"
-                  />
+                  <p className="text-xs text-slate-500">
+                    Model will be automatically set from the selected provider configuration.
+                  </p>
                 </div>
               </div>
 
