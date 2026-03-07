@@ -6,15 +6,17 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev:agent\" \"npm run dev:web\"",
+    "dev": "npm run kill-ports && concurrently \"npm run dev:agent\" \"npm run dev:web\"",
     "dev:agent": "cd apps/fae-agent && cargo run",
     "dev:web": "bun run --cwd apps/web dev",
+    "kill-ports": "kill-port 3000 3001 || true",
     "test": "cd apps/fae-agent && cargo test",
     "build:agent": "cd apps/fae-agent && cargo build --release",
     "build:web": "bun run --cwd apps/web build",
     "typecheck": "bun run --cwd apps/web typecheck"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "kill-port": "^2.0.1"
   }
 }

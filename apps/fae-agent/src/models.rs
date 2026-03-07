@@ -37,4 +37,49 @@ pub struct ChatCompletion {
     pub timestamp: i64,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, FromRow)]
+pub struct Agent {
+    pub id: String,
+    pub name: String,
+    pub provider: String,
+    #[serde(rename = "provider_config_id")]
+    pub provider_config_id: Option<String>,
+    pub model: String,
+    #[serde(rename = "system_prompt")]
+    pub system_prompt: Option<String>,
+    #[serde(rename = "avatar_url")]
+    pub avatar_url: Option<String>,
+    pub skills: Vec<String>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CreateAgentRequest {
+    pub name: String,
+    pub provider: String,
+    #[serde(rename = "providerConfigId")]
+    pub provider_config_id: Option<String>,
+    pub model: String,
+    #[serde(rename = "systemPrompt")]
+    pub system_prompt: Option<String>,
+    #[serde(rename = "avatarUrl")]
+    pub avatar_url: Option<String>,
+    pub skills: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct UpdateAgentRequest {
+    pub name: String,
+    pub provider: String,
+    #[serde(rename = "providerConfigId")]
+    pub provider_config_id: Option<String>,
+    pub model: String,
+    #[serde(rename = "systemPrompt")]
+    pub system_prompt: Option<String>,
+    #[serde(rename = "avatarUrl")]
+    pub avatar_url: Option<String>,
+    pub skills: Vec<String>,
+}
+
 pub mod providers;

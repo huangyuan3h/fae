@@ -1,7 +1,7 @@
 use axum::{
     extract::DefaultBodyLimit,
     response::Html,
-    routing::{get, post, put},
+    routing::{delete, get, post, put},
     Router,
 };
 use tower_http::cors::{Any, CorsLayer};
@@ -9,7 +9,7 @@ use tower_http::cors::{Any, CorsLayer};
 pub fn create_app(state: crate::AppState) -> Router {
     let cors_layer = CorsLayer::new()
         .allow_origin(get_allowed_origins())
-        .allow_methods([axum::http::Method::GET, axum::http::Method::POST, axum::http::Method::PUT])
+        .allow_methods([axum::http::Method::GET, axum::http::Method::POST, axum::http::Method::PUT, axum::http::Method::DELETE])
         .allow_headers(Any);
 
     Router::new()
@@ -17,6 +17,11 @@ pub fn create_app(state: crate::AppState) -> Router {
         .route("/health", get(handle_health))
         // Basic API routes
         .route("/api/status", get(super::services::status_handler))
+        // Agent API routes
+        .route("/api/agents", get(super::agents_api::get_agents_handler))
+        .route("/api/agents", post(super::agents_api::create_agent_handler))
+        .route("/api/agents/:id", put(super::agents_api::update_agent_handler))
+        .route("/api/agents/:id", delete(super::agents_api::delete_agent_handler))
         // Match exact Next.js path expectations: /api/chat versus /api/chat/stream
         .route("/api/chat", post(super::services::agent_chat_handler))
         .route("/api/chat/stream", post(super::services::chat_stream_handler))

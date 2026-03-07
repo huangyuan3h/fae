@@ -19,6 +19,7 @@ pub mod api;
 pub mod config;
 pub mod models;
 pub mod services;
+pub mod agents_api;
 
 // Define AppState for sharing resources across handlers
 #[derive(Clone)]

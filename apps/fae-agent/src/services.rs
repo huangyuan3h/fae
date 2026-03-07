@@ -128,6 +128,7 @@ pub use providers_api::{
     get_ollama_settings_handler, 
     update_ollama_settings_handler 
 };
+pub use super::agents_api;
 
 pub mod providers;      // Provider core logic
 pub mod providers_api;  // Provider API handlers
