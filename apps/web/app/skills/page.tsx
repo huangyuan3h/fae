@@ -116,20 +116,20 @@ export default function SkillsPage() {
           ) : skills.length === 0 ? (
             <p className="text-sm text-slate-500">No skills found.</p>
           ) : (
-            skills.map((skill) => {
-              const isPending = pendingId === skill.id;
-              const isEnabled = skill.enabled === 1;
-              return (
-               <div
-                 key={skill.id}
-                 className="flex items-start justify-between rounded-lg border border-slate-200 p-4 hover:border-slate-300 transition-colors"
-               >
-                   <div className="flex items-start gap-4">
+             skills.map((skill) => {
+               const isPending = pendingId === skill.id;
+               const isEnabled = skill.enabled === 1;
+               return (
+                 <div
+                   key={skill.id}
+                   className="flex items-start justify-between rounded-lg border border-slate-200 p-4 hover:border-slate-300 transition-colors"
+                 >
+                   <div className="flex items-start gap-4 flex-1">
                      <div className="min-w-0 flex-1">
                        <p className="text-base font-semibold text-slate-900 truncate" title={skill.id}>{skill.id}</p>
                        <p className="mt-1 text-sm text-slate-600 line-clamp-2" title={skill.name}>{skill.name}</p>
                      </div>
-
+                   </div>
                    <div className="flex min-w-[180px] justify-end items-start gap-2 pl-4">
                      <Badge variant={isEnabled ? "default" : "secondary"} className="shrink-0">
                        {isEnabled ? "Enabled" : "Disabled"}
@@ -145,9 +145,9 @@ export default function SkillsPage() {
                        {isEnabled ? "Disable" : "Enable"}
                      </Button>
                    </div>
-                </div>
-              );
-            })
+                 </div>
+               );
+             })
           )}
 
           {error ? (
