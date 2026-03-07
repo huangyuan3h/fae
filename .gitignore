@@ -22,3 +22,6 @@ data
 .DS_Store
 
 skills/*
+*.db-shm
+*.db-wal
+*.db
