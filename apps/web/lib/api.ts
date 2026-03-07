@@ -122,8 +122,9 @@ export type ChatStreamEvent =
   | { type: "error"; message: string }
   | { type: "final"; assistantText?: string };
 
+// API returns snake_case (session_token); we normalize to a string for callers.
 export async function loginWithStartupToken(token: string): Promise<string> {
-  const result = await requestJson<{ sessionToken: string }>(
+  const result = await requestJson<{ session_token: string }>(
     "/api/auth/login",
     {
       method: "POST",
@@ -131,15 +132,15 @@ export async function loginWithStartupToken(token: string): Promise<string> {
     }
   );
 
-  if (!result.ok || !result.data?.sessionToken) {
+  if (!result.ok || !result.data?.session_token) {
     throw new Error(result.error?.message ?? "Login failed");
   }
 
-  return result.data.sessionToken;
+  return result.data.session_token;
 }
 
 export async function createDevSession(): Promise<string> {
-  const result = await requestJson<{ sessionToken: string }>(
+  const result = await requestJson<{ session_token: string }>(
     "/api/auth/dev-login",
     {
       method: "POST",
@@ -147,11 +148,11 @@ export async function createDevSession(): Promise<string> {
     }
   );
 
-  if (!result.ok || !result.data?.sessionToken) {
+  if (!result.ok || !result.data?.session_token) {
     throw new Error(result.error?.message ?? "Failed to create dev session");
   }
 
-  return result.data.sessionToken;
+  return result.data.session_token;
 }
 
 export async function fetchAgents(sessionToken: string): Promise<AgentItem[]> {
