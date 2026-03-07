@@ -28,6 +28,7 @@ pub fn create_app(state: crate::AppState) -> Router {
         // Skill API routes 
         .route("/api/skills", get(super::services::skills_api::get_skills_handler))
         .route("/api/skills/:id", put(super::services::skills_api::update_skill_handler))
+        .route("/api/skills/refresh", post(super::services::skills_api::refresh_skills_handler))
         // WebSocket route for future AI streaming
         .route("/api/ws/chat", get(super::services::chat_ws_handler))
         // Add state

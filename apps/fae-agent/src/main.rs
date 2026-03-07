@@ -52,10 +52,35 @@ async fn main() -> Result<()> {
 
     tracing::info!("Database initialized successfully");
     
-    // Load skills automatically
-    match services::skills::load_skills_from_directory("./skills", &db_pool).await {
+    // Load skills automatically from the skills directory
+    // First try relative to current working directory, then relative to parent if not found
+    let mut skills_dir = std::env::current_dir()
+        .unwrap_or_else(|_| std::path::PathBuf::from("."))
+        .join("skills")
+        .to_string_lossy()
+        .to_string();
+        
+    if !std::path::Path::new(&skills_dir).exists() {
+        // Look in project root as fallback (common when running from apps/fae-agent/)
+        // Go up two levels from apps/fae-agent to reach project root
+        let proj_root_skills_dir = std::env::current_dir()
+            .unwrap_or_else(|_| std::path::PathBuf::from("."))
+            .parent()
+            .and_then(|p| p.parent())
+            .map(|p| p.join("skills"))
+            .unwrap_or_else(|| std::path::PathBuf::from("../../skills"))
+            .to_string_lossy()
+            .to_string();
+            
+        if std::path::Path::new(&proj_root_skills_dir).exists() {
+            skills_dir = proj_root_skills_dir;
+            tracing::info!("Using skills directory from project root: {}", skills_dir);
+        }
+    }
+    
+    match services::skills::load_skills_from_directory(&skills_dir, &db_pool).await {
         Ok(loaded_skills) => {
-            tracing::info!("Successfully loaded {} skills", loaded_skills.len());
+            tracing::info!("Successfully loaded {} skills from {}", loaded_skills.len(), skills_dir);
         }
         Err(e) => {
             tracing::error!("Failed to load skills: {}", e);

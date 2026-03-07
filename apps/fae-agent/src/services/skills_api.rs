@@ -4,6 +4,7 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
+use std::env;
 use tracing::info;
 
 use super::skills::*;
@@ -35,7 +36,7 @@ pub async fn update_skill_handler(
     Json(payload): Json<UpdateSkillPayload>,
 ) -> Result<Json<SkillApiResponse<Skill>>, StatusCode> {
     info!("Updating skill: {} to enabled: {}", skill_id, payload.enabled);
-    
+
     match update_skill(&state.db_pool, &skill_id, payload.enabled).await {
         Ok(Some(updated_skill)) => Ok(Json(SkillApiResponse {
             ok: true,
@@ -55,6 +56,31 @@ pub async fn update_skill_handler(
         },
         Err(e) => {
             eprintln!("Failed to update skill: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+pub async fn refresh_skills_handler(
+    State(state): State<crate::AppState>,
+) -> Result<Json<SkillApiResponse<Vec<Skill>>>, StatusCode> {
+    info!("Refreshing skills from directory");
+    
+    // Build the skills directory path
+    let skills_dir = env::current_dir()
+        .unwrap_or_else(|_| std::path::PathBuf::from("."))
+        .join("skills")
+        .to_string_lossy()
+        .to_string();
+
+    match refresh_skills_from_directory(&skills_dir, &state.db_pool).await {
+        Ok(refreshed_skills) => Ok(Json(SkillApiResponse {
+            ok: true,
+            data: Some(refreshed_skills),
+            error: None,
+        })),
+        Err(e) => {
+            eprintln!("Failed to refresh skills: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }

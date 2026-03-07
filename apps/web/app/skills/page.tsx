@@ -10,6 +10,7 @@ import { Spinner } from "../../components/ui/spinner";
 import {
   createDevSession,
   fetchSkills,
+  refreshSkills,
   type SkillItem,
   updateSkill
 } from "../../lib/api";
@@ -42,6 +43,24 @@ export default function SkillsPage() {
       .finally(() => setLoading(false));
   }, [sessionToken]);
 
+  async function handleRefreshSkills() {
+    if (!sessionToken) {
+      return;
+    }
+
+    setError("");
+    setLoading(true);
+
+    try {
+      const updatedSkills = await refreshSkills(sessionToken);
+      setSkills(updatedSkills);
+    } catch (refreshError) {
+      setError(refreshError instanceof Error ? refreshError.message : "Failed to refresh skills");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function onToggle(skill: SkillItem) {
     if (!sessionToken) {
       return;
@@ -72,10 +91,24 @@ export default function SkillsPage() {
     >
       <Card>
         <CardHeader>
-          <CardTitle>Installed Skills</CardTitle>
-          <CardDescription>
-            Disabled skills remain installed but cannot be executed in chat and channels.
-          </CardDescription>
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle>Installed Skills</CardTitle>
+              <CardDescription>
+                Disabled skills remain installed but cannot be executed in chat and channels.
+              </CardDescription>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleRefreshSkills}
+              disabled={loading}
+            >
+              {loading ? <Spinner className="h-4 w-4" /> : null}
+              Refresh Skills
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-3">
           {loading ? (
@@ -87,30 +120,31 @@ export default function SkillsPage() {
               const isPending = pendingId === skill.id;
               const isEnabled = skill.enabled === 1;
               return (
-                <div
-                  key={skill.id}
-                  className="flex items-center justify-between rounded-lg border border-slate-200 p-3"
-                >
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">{skill.name}</p>
-                    <p className="text-xs text-slate-500">{skill.id}</p>
-                  </div>
+               <div
+                 key={skill.id}
+                 className="flex items-start justify-between rounded-lg border border-slate-200 p-4 hover:border-slate-300 transition-colors"
+               >
+                   <div className="flex items-start gap-4">
+                     <div className="min-w-0 flex-1">
+                       <p className="text-base font-semibold text-slate-900 truncate" title={skill.id}>{skill.id}</p>
+                       <p className="mt-1 text-sm text-slate-600 line-clamp-2" title={skill.name}>{skill.name}</p>
+                     </div>
 
-                  <div className="flex items-center gap-2">
-                    <Badge variant={isEnabled ? "default" : "secondary"}>
-                      {isEnabled ? "Enabled" : "Disabled"}
-                    </Badge>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={isPending}
-                      onClick={() => onToggle(skill)}
-                    >
-                      {isPending ? <Spinner className="h-4 w-4" /> : null}
-                      {isEnabled ? "Disable" : "Enable"}
-                    </Button>
-                  </div>
+                   <div className="flex min-w-[180px] justify-end items-start gap-2 pl-4">
+                     <Badge variant={isEnabled ? "default" : "secondary"} className="shrink-0">
+                       {isEnabled ? "Enabled" : "Disabled"}
+                     </Badge>
+                     <Button
+                       type="button"
+                       variant="outline"
+                       size="sm"
+                       disabled={isPending}
+                       onClick={() => onToggle(skill)}
+                     >
+                       {isPending ? <Spinner className="h-4 w-4" /> : null}
+                       {isEnabled ? "Disable" : "Enable"}
+                     </Button>
+                   </div>
                 </div>
               );
             })

@@ -255,6 +255,15 @@ export async function fetchSkills(sessionToken: string): Promise<SkillItem[]> {
   return Array.isArray(result.data) ? result.data : [];
 }
 
+export async function refreshSkills(sessionToken: string): Promise<SkillItem[]> {
+  const result = await requestJson<SkillItem[]>(
+    "/api/skills/refresh",
+    { method: "POST" },
+    sessionToken
+  );
+  return Array.isArray(result.data) ? result.data : [];
+}
+
 export async function updateSkill(params: {
   sessionToken: string;
   id: string;
