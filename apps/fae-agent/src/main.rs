@@ -13,6 +13,7 @@ use config::Settings;
 use tracing_subscriber::{EnvFilter, fmt};
 use sqlx::sqlite::SqliteConnectOptions;
 use std::sync::Arc;
+use sqlx::SqlitePool;
 
 pub mod api;
 pub mod config;
@@ -24,8 +25,6 @@ pub mod services;
 pub struct AppState {
     pub db_pool: Arc<SqlitePool>,
 }
-
-use sqlx::SqlitePool;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -53,6 +52,16 @@ async fn main() -> Result<()> {
 
     tracing::info!("Database initialized successfully");
     
+    // Load skills automatically
+    match services::skills::load_skills_from_directory("./skills", &db_pool).await {
+        Ok(loaded_skills) => {
+            tracing::info!("Successfully loaded {} skills", loaded_skills.len());
+        }
+        Err(e) => {
+            tracing::error!("Failed to load skills: {}", e);
+        }
+    }
+
     // Create shared state
     let app_state = AppState {
         db_pool: Arc::new(db_pool),

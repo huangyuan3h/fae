@@ -120,6 +120,16 @@ pub async fn initialize_db(_db_url: &str) -> Result<(), Box<dyn std::error::Erro
     Ok(()) // Handled in main now
 }
 
-// No re-exports for now to avoid circular dependency problems;
-pub mod providers;     // Core provider resolution
-pub mod providers_api; // Provider API handlers
+// Export needed for API access
+pub use providers::ProviderResolver; // Export provider resolver itself  
+pub use providers_api::{ 
+    get_providers_handler, 
+    update_providers_handler, 
+    get_ollama_settings_handler, 
+    update_ollama_settings_handler 
+};
+
+pub mod providers;      // Provider core logic
+pub mod providers_api;  // Provider API handlers
+pub mod skills;         // Skills functionality
+pub mod skills_api;     // Skill API handlers

@@ -13,18 +13,21 @@ pub fn create_app(state: crate::AppState) -> Router {
         .allow_headers(Any);
 
     Router::new()
-        // Health check endpoint - defined internally 
+        // Health check endpoint
         .route("/health", get(handle_health))
         // Basic API routes
         .route("/api/status", get(super::services::status_handler))
         // Match exact Next.js path expectations: /api/chat versus /api/chat/stream
         .route("/api/chat", post(super::services::agent_chat_handler))
         .route("/api/chat/stream", post(super::services::chat_stream_handler))
-        // Provider API routes - accessing via the module structure directly
+        // Provider API routes
         .route("/api/settings/providers", get(super::services::providers_api::get_providers_handler))
         .route("/api/settings/providers", put(super::services::providers_api::update_providers_handler))
         .route("/api/settings/ollama", get(super::services::providers_api::get_ollama_settings_handler))
         .route("/api/settings/ollama", put(super::services::providers_api::update_ollama_settings_handler))
+        // Skill API routes 
+        .route("/api/skills", get(super::services::skills_api::get_skills_handler))
+        .route("/api/skills/:id", put(super::services::skills_api::update_skill_handler))
         // WebSocket route for future AI streaming
         .route("/api/ws/chat", get(super::services::chat_ws_handler))
         // Add state
