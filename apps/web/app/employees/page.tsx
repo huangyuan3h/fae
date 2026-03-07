@@ -2,7 +2,7 @@
 
 import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { Pencil, Plus, Trash2, Upload, X } from "lucide-react";
+import { MessageCircle, Pencil, Plus, Trash2, Upload, X } from "lucide-react";
 import { AppShell } from "../../components/app-shell";
 import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import { Badge } from "../../components/ui/badge";
@@ -349,6 +349,17 @@ export default function EmployeesPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          // Navigate to chat page with the selected agent
+                          window.location.href = `/chat?agent=${encodeURIComponent(agent.id)}`;
+                        }}
+                        className="rounded-md p-1.5 text-slate-500 transition hover:bg-blue-100 hover:text-blue-600"
+                        aria-label={`Chat with ${agent.name}`}
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                      </button>
                       <button
                         type="button"
                         onClick={() => openEditModal(agent)}

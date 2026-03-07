@@ -62,6 +62,18 @@ function stringifyValue(value: unknown): string {
   }
 }
 
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).slice(0, 2);
+  if (parts.length === 0 || !parts[0]) {
+    return "FA";
+  }
+  return parts.map((part) => part[0]?.toUpperCase() ?? "").join("");
+}
+
+function isImageAvatar(value: string): boolean {
+  return value.startsWith("data:image/") || value.startsWith("http://") || value.startsWith("https://");
+}
+
 function upsertTrace(
   traces: ToolTrace[],
   toolCallId: string,
@@ -188,6 +200,20 @@ export default function ChatPage() {
   const messageEndRef = useRef<HTMLDivElement | null>(null);
   const sessionRetryRef = useRef(false);
 
+  // 获取URL参数中的agent值
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const agentFromUrl = urlParams.get('agent');
+      if (agentFromUrl) {
+        // 延迟设置，确保agents已加载后再设置（避免UI显示不一致）
+        setTimeout(() => {
+          setSelectedAgentId(agentFromUrl);
+        }, 0);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     ensureSessionToken(createDevSession)
       .then((token) => {
@@ -218,6 +244,7 @@ export default function ChatPage() {
 
         if (list.length > 0) {
           setAgents(list);
+          // 如果已经设置了selectedAgentId（来自URL参数），则使用它；否则使用第一个agent
           setSelectedAgentId((prev) => prev || list[0].id);
           setStatusText(`Loaded ${list.length} agent${list.length > 1 ? "s" : ""}.`);
           return;
@@ -351,6 +378,8 @@ export default function ChatPage() {
     return null;
   }
 
+  const selectedAgent = agents.find(agent => agent.id === selectedAgentId);
+  
   return (
     <AppShell
       active="chat"
@@ -359,36 +388,99 @@ export default function ChatPage() {
     >
       <section className="grid gap-4 lg:grid-cols-[320px_1fr]">
         <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Session</CardTitle>
-            <CardDescription>Agent selection and status.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="agent-select">Agent</Label>
-              <Select
-                id="agent-select"
-                value={selectedAgentId}
-                onChange={(event) => setSelectedAgentId(event.target.value)}
-                disabled={bootstrapping || agents.length === 0}
-                options={agents.map((agent) => ({
-                  value: agent.id,
-                  label: `${agent.name} (${agent.model ?? "unknown model"})`
-                }))}
-              />
-            </div>
+          {selectedAgent ? (
+            <>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <span className="inline-block w-3 h-3 rounded-full bg-green-500"></span>
+                  {selectedAgent.name}
+                </CardTitle>
+                <CardDescription>Digital employee details</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    {selectedAgent.avatar_url?.startsWith("emoji:") ? (
+                      <div className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-2xl">
+                        {selectedAgent.avatar_url.slice(6)}
+                      </div>
+                    ) : selectedAgent.avatar_url && (selectedAgent.avatar_url.startsWith("data:image/") || selectedAgent.avatar_url.startsWith("http://") || selectedAgent.avatar_url.startsWith("https://")) ? (
+                      <img
+                        src={selectedAgent.avatar_url}
+                        alt={`${selectedAgent.name} avatar`}
+                        className="h-12 w-12 rounded-full border border-slate-200 object-cover"
+                      />
+                    ) : (
+                      <div className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-sm font-semibold text-blue-700">
+                        {getInitials(selectedAgent.name)}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-slate-900">{selectedAgent.name}</h3>
+                    <p className="text-sm text-slate-500">{selectedAgent.provider} • {selectedAgent.model}</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium text-slate-700">System Prompt</Label>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 max-h-32 overflow-y-auto">
+                    <p className="whitespace-pre-wrap">{selectedAgent.system_prompt || "(no prompt)"}</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium text-slate-700">Skills</Label>
+                  <div className="flex flex-wrap gap-1">
+                    {selectedAgent.skills && selectedAgent.skills.length > 0 ? (
+                      selectedAgent.skills.map((skillId) => (
+                        <Badge key={skillId} variant="secondary" className="text-xs">
+                          {skillId}
+                        </Badge>
+                      ))
+                    ) : (
+                      <Badge variant="secondary" className="text-xs opacity-50">
+                        No skills assigned
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </>
+          ) : (
+            <>
+              <CardHeader>
+                <CardTitle className="text-lg">Session</CardTitle>
+                <CardDescription>Agent selection and status.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="agent-select">Agent</Label>
+                  <Select
+                    id="agent-select"
+                    value={selectedAgentId}
+                    onChange={(event) => setSelectedAgentId(event.target.value)}
+                    disabled={bootstrapping || agents.length === 0}
+                    options={agents.map((agent) => ({
+                      value: agent.id,
+                      label: `${agent.name} (${agent.model ?? "unknown model"})`
+                    }))}
+                  />
+                </div>
 
-            <Badge variant={bootstrapping ? "secondary" : "success"}>
-              {bootstrapping ? "Preparing workspace..." : statusText || "Ready"}
-            </Badge>
+                <Badge variant={bootstrapping ? "secondary" : "success"}>
+                  {bootstrapping ? "Preparing workspace..." : statusText || "Ready"}
+                </Badge>
 
-            {pageError ? (
-              <Alert variant="destructive">
-                <AlertTitle>Chat unavailable</AlertTitle>
-                <AlertDescription>{pageError}</AlertDescription>
-              </Alert>
-            ) : null}
-          </CardContent>
+                {pageError ? (
+                  <Alert variant="destructive">
+                    <AlertTitle>Chat unavailable</AlertTitle>
+                    <AlertDescription>{pageError}</AlertDescription>
+                  </Alert>
+                ) : null}
+              </CardContent>
+            </>
+          )}
         </Card>
 
         <Card className="overflow-hidden">
