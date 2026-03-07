@@ -1,4 +1,3 @@
-// Main services module - keep all the original functionality but update function signatures with State
 use axum::{
     extract::{State, WebSocketUpgrade},
     http::StatusCode,
@@ -33,6 +32,13 @@ pub struct ChatRequest {
     pub message: String,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct AgentChatRequest {
+    #[serde(rename = "agentId")]  // Maps from camelCase 'agentId' in JSON to snake_case field
+    pub agent_id: String,
+    pub message: String,
+}
+
 pub async fn chat_stream_handler(
     State(_state): State<crate::AppState>,
     Json(payload): Json<ChatRequest>,
@@ -45,6 +51,31 @@ pub async fn chat_stream_handler(
     
     let response_message = format!(
         "Processed chat request for agent {}: {}",
+        payload.agent_id, payload.message
+    );
+    
+    let response = ChatCompletion {
+        id: uuid::Uuid::new_v4().to_string(),
+        message: response_message,
+        model,
+        timestamp: chrono::Utc::now().timestamp(),
+    };
+
+    Ok(Json(response))
+}
+
+// Handler specifically for Next.js client expectations (camelCase params)
+pub async fn agent_chat_handler(
+    State(_state): State<crate::AppState>,
+    Json(payload): Json<AgentChatRequest>,
+) -> Result<Json<ChatCompletion>, StatusCode> {
+    info!("Received agent chat request for agent: {}", payload.agent_id);
+    
+    // Placeholder - same response just different parameter name
+    let model = "mock-model".to_string();
+    
+    let response_message = format!(
+        "Processed agent chat request for {}: {}",
         payload.agent_id, payload.message
     );
     
@@ -89,5 +120,6 @@ pub async fn initialize_db(_db_url: &str) -> Result<(), Box<dyn std::error::Erro
     Ok(()) // Handled in main now
 }
 
-pub mod providers;
-pub mod providers_api;
+// No re-exports for now to avoid circular dependency problems;
+pub mod providers;     // Core provider resolution
+pub mod providers_api; // Provider API handlers

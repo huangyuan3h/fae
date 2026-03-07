@@ -13,12 +13,14 @@ pub fn create_app(state: crate::AppState) -> Router {
         .allow_headers(Any);
 
     Router::new()
-        // Health check endpoint
+        // Health check endpoint - defined internally 
         .route("/health", get(handle_health))
         // Basic API routes
         .route("/api/status", get(super::services::status_handler))
+        // Match exact Next.js path expectations: /api/chat versus /api/chat/stream
+        .route("/api/chat", post(super::services::agent_chat_handler))
         .route("/api/chat/stream", post(super::services::chat_stream_handler))
-        // Provider API routes with separate route() calls for different methods on same path
+        // Provider API routes - accessing via the module structure directly
         .route("/api/settings/providers", get(super::services::providers_api::get_providers_handler))
         .route("/api/settings/providers", put(super::services::providers_api::update_providers_handler))
         .route("/api/settings/ollama", get(super::services::providers_api::get_ollama_settings_handler))
