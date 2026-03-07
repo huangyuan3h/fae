@@ -130,6 +130,8 @@ pub use providers_api::{
 };
 pub use super::agents_api;
 
+pub mod auth; // Authentication handlers
+
 pub mod providers;      // Provider core logic
 pub mod providers_api;  // Provider API handlers
 pub mod skills;         // Skills functionality

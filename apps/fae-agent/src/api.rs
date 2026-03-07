@@ -15,6 +15,9 @@ pub fn create_app(state: crate::AppState) -> Router {
     Router::new()
         // Health check endpoint
         .route("/health", get(handle_health))
+        // Authentication API routes
+        .route("/api/auth/login", post(super::services::auth::handle_auth_login))  // Using POST for login
+        .route("/api/auth/dev-login", post(super::services::auth::handle_dev_login))  // Development login
         // Basic API routes
         .route("/api/status", get(super::services::status_handler))
         // Agent API routes
