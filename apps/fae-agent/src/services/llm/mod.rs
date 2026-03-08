@@ -7,6 +7,8 @@ mod context;
 mod memory;
 mod prompt_builder;
 mod service;
+mod tools;
+mod tool_executor;
 pub mod log;
 
 pub use models::{
@@ -31,4 +33,6 @@ pub use context::{AgentContext, SkillInfo};
 pub use memory::ConversationMemory;
 pub use prompt_builder::PromptBuilder;
 pub use service::LLMService;
+pub use tools::{Tool, ToolResult, BashTool, ReadFileTool, WriteFileTool, ListDirectoryTool};
+pub use tool_executor::ToolExecutor;
 pub use log::{LLMLogger, LLMLogEntry, LLMEventType, LLMEventData, generate_session_id};

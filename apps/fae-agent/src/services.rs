@@ -219,15 +219,25 @@ pub async fn agent_stream_chat_handler(
                 let llm_client = llm::LLMClient::new(base_url.clone(), provider_type.clone(), api_key);
                 
                 let system_prompt = llm::build_system_prompt(&agent.skills);
-                let tools = if agent.skills.is_empty() {
-                    None
-                } else {
+                
+                let mut all_tools = Vec::new();
+                
+                if !agent.skills.is_empty() {
                     let mut skill_defs = std::collections::HashMap::new();
                     skill_defs.insert("file-operation".to_string(), 
                         "Perform file operations like read, write, list directory".to_string());
                     skill_defs.insert("example-skill".to_string(), 
                         "An example demonstration skill".to_string());
-                    Some(llm::skills_to_tools(&agent.skills, &skill_defs))
+                    all_tools.extend(llm::skills_to_tools(&agent.skills, &skill_defs));
+                }
+                
+                let tool_executor = llm::ToolExecutor::default();
+                all_tools.extend(tool_executor.get_tool_definitions());
+                
+                let tools = if all_tools.is_empty() {
+                    None
+                } else {
+                    Some(all_tools)
                 };
 
                 info!("[LLM] System prompt: {}", system_prompt);
@@ -294,6 +304,8 @@ pub async fn agent_stream_chat_handler(
                             }
                         }
 
+                        let mut tool_results: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+                        
                         for tc in &tool_calls_to_execute {
                             let tool_call_id = tc.id.clone();
                             let tool_name = tc.function.name.clone();
@@ -310,7 +322,18 @@ pub async fn agent_stream_chat_handler(
 
                             tokio::time::sleep(Duration::from_millis(300)).await;
 
-                            let tool_result = format!("Tool '{}' executed successfully for input: {}", tool_name, args);
+                            let tool_result = match llm::ToolExecutor::default().execute_tool_call(tc).await {
+                                llm::ToolResult { success, output, error } => {
+                                    if success {
+                                        output
+                                    } else {
+                                        format!("Error: {}", error.unwrap_or_else(|| "Unknown error".to_string()))
+                                    }
+                                }
+                            };
+                            
+                            tool_results.insert(tool_call_id.clone(), tool_result.clone());
+                            
                             info!("[TOOL] Result: {}", tool_result);
                             
                             if let Some(ref logger) = logger {
@@ -345,9 +368,10 @@ pub async fn agent_stream_chat_handler(
                             });
 
                             for tc in &tool_calls_to_execute {
+                                let result = tool_results.get(&tc.id).cloned().unwrap_or_else(|| "No result".to_string());
                                 messages_with_results.push(llm::ChatMessage {
                                     role: "tool".to_string(),
-                                    content: format!("Tool result for {}: executed successfully", tc.function.name),
+                                    content: result,
                                     tool_calls: None,
                                 });
                             }

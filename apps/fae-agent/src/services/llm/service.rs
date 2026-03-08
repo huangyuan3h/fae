@@ -3,12 +3,14 @@ use super::memory::ConversationMemory;
 use super::models::*;
 use super::prompt_builder::PromptBuilder;
 use super::client::LLMClient;
+use super::tool_executor::ToolExecutor;
 
 pub struct LLMService {
     client: LLMClient,
     context: AgentContext,
     memory: ConversationMemory,
     prompt_builder: PromptBuilder,
+    tool_executor: ToolExecutor,
 }
 
 impl LLMService {
@@ -21,13 +23,23 @@ impl LLMService {
         };
 
         let client = LLMClient::new(base_url, provider_type, api_key);
+        let working_directory = std::env::current_dir()
+            .unwrap_or_else(|_| std::path::PathBuf::from("."))
+            .to_string_lossy()
+            .to_string();
         
         Self {
             client,
             context,
             memory: ConversationMemory::new(),
             prompt_builder: PromptBuilder::new(),
+            tool_executor: ToolExecutor::new(working_directory),
         }
+    }
+
+    pub fn with_working_directory(mut self, dir: String) -> Self {
+        self.tool_executor = ToolExecutor::new(dir);
+        self
     }
 
     pub fn with_memory(mut self, memory: ConversationMemory) -> Self {
@@ -70,12 +82,31 @@ impl LLMService {
     }
 
     pub fn build_tools(&self) -> Option<Vec<ToolDefinition>> {
-        let tools = self.prompt_builder.build_tools(&self.context);
+        let mut tools = self.prompt_builder.build_tools(&self.context);
+        let system_tools = self.tool_executor.get_tool_definitions();
+        tools.extend(system_tools);
+        
         if tools.is_empty() {
             None
         } else {
             Some(tools)
         }
+    }
+
+    pub fn get_tool_executor(&self) -> &ToolExecutor {
+        &self.tool_executor
+    }
+
+    pub fn get_tool_executor_mut(&mut self) -> &mut ToolExecutor {
+        &mut self.tool_executor
+    }
+
+    pub async fn execute_tool_call(&self, tool_call: &ToolCall) -> super::tools::ToolResult {
+        self.tool_executor.execute_tool_call(tool_call).await
+    }
+
+    pub async fn execute_tool_calls(&self, tool_calls: &[ToolCall]) -> Vec<(String, super::tools::ToolResult)> {
+        self.tool_executor.execute_tool_calls(tool_calls).await
     }
 
     pub async fn chat(
@@ -189,11 +220,17 @@ mod tests {
     }
 
     #[test]
-    fn test_llm_service_tools_empty() {
+    fn test_llm_service_tools_with_system_tools() {
         let service = create_test_service();
         let tools = service.build_tools();
 
-        assert!(tools.is_none());
+        assert!(tools.is_some());
+        let tools = tools.unwrap();
+        assert!(!tools.is_empty());
+        assert!(tools.iter().any(|t| t.function.name == "bash"));
+        assert!(tools.iter().any(|t| t.function.name == "read_file"));
+        assert!(tools.iter().any(|t| t.function.name == "write_file"));
+        assert!(tools.iter().any(|t| t.function.name == "list_directory"));
     }
 
     #[test]
