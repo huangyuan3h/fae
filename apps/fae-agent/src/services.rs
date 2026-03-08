@@ -130,7 +130,7 @@ async fn get_agent_by_id(
 async fn get_provider_config(
     db_pool: &sqlx::SqlitePool,
     config_id: &str,
-) -> Option<(String, String)> {
+) -> Option<crate::models::providers::ProviderConfig> {
     let row = sqlx::query(
         r#"SELECT value FROM settings WHERE key = 'provider.configs'"#
     )
@@ -145,7 +145,7 @@ async fn get_provider_config(
     configs
         .iter()
         .find(|c| c.id == config_id)
-        .map(|c| (c.base_url.clone(), c.model_id.clone()))
+        .cloned()
 }
 
 pub async fn agent_stream_chat_handler(
@@ -169,27 +169,38 @@ pub async fn agent_stream_chat_handler(
                     agent.name, agent.provider, agent.model);
                 info!("[AGENT] Skills: {:?}", agent.skills);
                 
-                let (base_url, model_id) = if let Some(ref config_id) = agent.provider_config_id {
+                let provider_config = if let Some(ref config_id) = agent.provider_config_id {
                     match get_provider_config(&db_pool, config_id).await {
-                        Some((url, mid)) => {
-                            info!("[PROVIDER] Using config '{}': base_url={}, model={}", config_id, url, mid);
-                            (url, mid)
+                        Some(config) => {
+                            info!("[PROVIDER] Using config '{}': type={}, base_url={}, model={}", 
+                                config_id, config.provider_type, config.base_url, config.model_id);
+                            Some(config)
                         }
                         None => {
-                            info!("[PROVIDER] Config '{}' not found, using defaults", config_id);
-                            ("http://127.0.0.1:11434".to_string(), agent.model.clone())
+                            info!("[PROVIDER] Config '{}' not found", config_id);
+                            None
                         }
                     }
                 } else {
-                    info!("[PROVIDER] No config specified, using Ollama default");
-                    ("http://127.0.0.1:11434".to_string(), agent.model.clone())
+                    None
                 };
 
-                let model = if model_id.is_empty() { agent.model.clone() } else { model_id };
-                info!("[LLM] Connecting to Ollama at: {}", base_url);
-                info!("[LLM] Using model: {}", model);
+                let (base_url, model, provider_type, api_key) = match &provider_config {
+                    Some(config) => {
+                        let model = if config.model_id.is_empty() { agent.model.clone() } else { config.model_id.clone() };
+                        (config.base_url.clone(), model, config.provider_type.clone(), config.api_key.clone())
+                    }
+                    None => {
+                        info!("[PROVIDER] No config specified, using Ollama default");
+                        ("http://127.0.0.1:11434".to_string(), agent.model.clone(), "ollama".to_string(), String::new())
+                    }
+                };
 
-                let llm_client = llm::LLMClient::new(base_url);
+                info!("[LLM] Provider type: {}", provider_type);
+                info!("[LLM] Base URL: {}", base_url);
+                info!("[LLM] Model: {}", model);
+
+                let llm_client = llm::LLMClient::new(base_url.clone(), provider_type.clone(), api_key);
                 
                 let system_prompt = llm::build_system_prompt(&agent.skills);
                 let tools = if agent.skills.is_empty() {

@@ -67,20 +67,237 @@ pub struct OllamaChatResponse {
     pub done: bool,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct OpenAIStreamChoice {
+    pub delta: OpenAIDelta,
+    pub finish_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct OpenAIDelta {
+    #[serde(default)]
+    pub content: Option<String>,
+    #[serde(default)]
+    pub tool_calls: Option<Vec<OpenAIToolCall>>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct OpenAIToolCall {
+    pub index: i32,
+    pub id: Option<String>,
+    #[serde(default)]
+    pub function: Option<OpenAIFunctionCall>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct OpenAIFunctionCall {
+    pub name: Option<String>,
+    pub arguments: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct OpenAIStreamResponse {
+    pub choices: Vec<OpenAIStreamChoice>,
+}
+
 pub struct LLMClient {
     base_url: String,
+    provider_type: String,
+    api_key: String,
     http_client: reqwest::Client,
 }
 
 impl LLMClient {
-    pub fn new(base_url: String) -> Self {
+    pub fn new(base_url: String, provider_type: String, api_key: String) -> Self {
+        let http_client = reqwest::Client::builder()
+            .user_agent("OpenClaw-Gateway/1.0")
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new());
+        
         Self {
             base_url,
-            http_client: reqwest::Client::new(),
+            provider_type,
+            api_key,
+            http_client,
         }
     }
 
     pub async fn chat_stream(
+        &self,
+        model: &str,
+        messages: Vec<ChatMessage>,
+        tools: Option<Vec<ToolDefinition>>,
+    ) -> Result<
+        (
+            tokio::sync::mpsc::Receiver<OllamaStreamResponse>,
+            tokio::sync::oneshot::Receiver<()>,
+        ),
+        Box<dyn std::error::Error + Send + Sync>,
+    > {
+        if self.provider_type == "openai" {
+            self.chat_stream_openai(model, messages, tools).await
+        } else {
+            self.chat_stream_ollama(model, messages, tools).await
+        }
+    }
+
+    async fn chat_stream_openai(
+        &self,
+        model: &str,
+        messages: Vec<ChatMessage>,
+        tools: Option<Vec<ToolDefinition>>,
+    ) -> Result<
+        (
+            tokio::sync::mpsc::Receiver<OllamaStreamResponse>,
+            tokio::sync::oneshot::Receiver<()>,
+        ),
+        Box<dyn std::error::Error + Send + Sync>,
+    > {
+        #[derive(Serialize)]
+        struct OpenAIRequest {
+            model: String,
+            messages: Vec<ChatMessage>,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            tools: Option<Vec<ToolDefinition>>,
+            stream: bool,
+        }
+
+        let model = model.to_string();
+        let request = OpenAIRequest {
+            model: model.clone(),
+            messages,
+            tools,
+            stream: true,
+        };
+
+        let url = format!("{}/chat/completions", self.base_url.trim_end_matches('/'));
+        
+        tracing::info!("Sending request to OpenAI API: {} with model {}", url, model);
+        
+        let mut req_builder = self.http_client.post(&url).json(&request);
+        
+        if !self.api_key.is_empty() {
+            req_builder = req_builder.header("Authorization", format!("Bearer {}", self.api_key));
+        }
+        
+        let response = req_builder.send().await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await?;
+            return Err(format!("OpenAI API error: {} - {}", status, body).into());
+        }
+
+        let (tx, rx) = tokio::sync::mpsc::channel(100);
+        let (done_tx, done_rx) = tokio::sync::oneshot::channel();
+
+        tokio::spawn(async move {
+            use futures_util::StreamExt;
+            let mut stream = response.bytes_stream();
+            let mut buffer = String::new();
+            let mut done_tx = Some(done_tx);
+            let mut tool_call_buffers: std::collections::HashMap<i32, (String, String, String)> = std::collections::HashMap::new();
+
+            while let Some(chunk_result) = stream.next().await {
+                match chunk_result {
+                    Ok(bytes) => {
+                        buffer.push_str(&String::from_utf8_lossy(&bytes));
+                        
+                        while let Some(newline_pos) = buffer.find('\n') {
+                            let line_str = buffer[..newline_pos].trim().to_string();
+                            buffer = buffer[newline_pos + 1..].to_string();
+                            
+                            if line_str.starts_with("data: ") {
+                                let data = &line_str[6..];
+                                if data == "[DONE]" {
+                                    if let Some(dtx) = done_tx.take() {
+                                        let _ = dtx.send(());
+                                    }
+                                    break;
+                                }
+                                
+                                match serde_json::from_str::<OpenAIStreamResponse>(data) {
+                                    Ok(openai_resp) => {
+                                        for choice in openai_resp.choices {
+                                            let content = choice.delta.content.clone().unwrap_or_default();
+                                            
+                                            let tool_calls: Option<Vec<ToolCall>> = choice.delta.tool_calls.as_ref().map(|tcs| {
+                                                tcs.iter().filter_map(|tc| {
+                                                    let index = tc.index;
+                                                    let entry = tool_call_buffers.entry(index).or_insert((
+                                                        tc.id.clone().unwrap_or_default(),
+                                                        String::new(),
+                                                        String::new(),
+                                                    ));
+                                                    
+                                                    if let Some(ref id) = tc.id {
+                                                        entry.0 = id.clone();
+                                                    }
+                                                    if let Some(ref func) = tc.function {
+                                                        if let Some(ref name) = func.name {
+                                                            entry.1 = name.clone();
+                                                        }
+                                                        if let Some(ref args) = func.arguments {
+                                                            entry.2.push_str(args);
+                                                        }
+                                                    }
+                                                    
+                                                    if !entry.2.is_empty() {
+                                                        Some(ToolCall {
+                                                            id: entry.0.clone(),
+                                                            tool_type: "function".to_string(),
+                                                            function: FunctionCall {
+                                                                name: entry.1.clone(),
+                                                                arguments: entry.2.clone(),
+                                                            },
+                                                        })
+                                                    } else {
+                                                        None
+                                                    }
+                                                }).collect()
+                                            });
+
+                                            let ollama_resp = OllamaStreamResponse {
+                                                model: model.to_string(),
+                                                created_at: chrono::Utc::now().to_rfc3339(),
+                                                message: Some(ChatMessage {
+                                                    role: "assistant".to_string(),
+                                                    content,
+                                                    tool_calls,
+                                                }),
+                                                done: choice.finish_reason.is_some(),
+                                                total_duration: None,
+                                                eval_count: None,
+                                            };
+
+                                            if tx.send(ollama_resp).await.is_err() {
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    Err(e) => {
+                                        tracing::warn!("Failed to parse OpenAI response: {} - line: {}", e, data);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::error!("Stream error: {}", e);
+                        break;
+                    }
+                }
+            }
+
+            if let Some(dtx) = done_tx.take() {
+                let _ = dtx.send(());
+            }
+        });
+
+        Ok((rx, done_rx))
+    }
+
+    async fn chat_stream_ollama(
         &self,
         model: &str,
         messages: Vec<ChatMessage>,
