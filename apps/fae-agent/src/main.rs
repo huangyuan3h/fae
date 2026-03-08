@@ -25,6 +25,7 @@ pub mod agents_api;
 #[derive(Clone)]
 pub struct AppState {
     pub db_pool: Arc<SqlitePool>,
+    pub llm_log_dir: String,
 }
 
 #[tokio::main]
@@ -91,6 +92,7 @@ async fn main() -> Result<()> {
     // Create shared state
     let app_state = AppState {
         db_pool: Arc::new(db_pool),
+        llm_log_dir: settings.llm_log_dir.clone(),
     };
     
     let app = api::create_app(app_state);

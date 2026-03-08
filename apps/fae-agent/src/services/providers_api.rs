@@ -152,6 +152,7 @@ mod tests {
         
         let state = AppState {
             db_pool: std::sync::Arc::new(db_pool.clone()),
+            llm_log_dir: "./logs/llm".to_string(),
         };
         
         let new_url = UpdateOllamaPayload {
@@ -179,6 +180,7 @@ mod tests {
         
         let state = AppState {
             db_pool: std::sync::Arc::new(db_pool),
+            llm_log_dir: "./logs/llm".to_string(),
         };
         
         let result = get_ollama_settings_handler(State(state)).await.unwrap();
@@ -195,6 +197,7 @@ mod tests {
         
         let state = AppState {
             db_pool: std::sync::Arc::new(db_pool.clone()),
+            llm_log_dir: "./logs/llm".to_string(),
         };
         
         let new_provider_config = ProviderConfig {
@@ -223,6 +226,7 @@ mod tests {
         // Now get the providers back to verify they were saved
         let state = AppState {
             db_pool: std::sync::Arc::new(db_pool),
+            llm_log_dir: "./logs/llm".to_string(),
         };
         
         let get_result = get_providers_handler(State(state)).await.unwrap();
@@ -240,6 +244,7 @@ mod tests {
         
         let state = AppState {
             db_pool: std::sync::Arc::new(db_pool.clone()),
+            llm_log_dir: "./logs/llm".to_string(),
         };
         
         // Simulate the kind of payload Next.js would send with camelCase - ensure we have ALL required fields
@@ -270,6 +275,7 @@ mod tests {
         // Get back the data to verify storage worked
         let state = AppState {
             db_pool: std::sync::Arc::new(db_pool),
+            llm_log_dir: "./logs/llm".to_string(),
         };
         
         let get_result = get_providers_handler(State(state)).await.unwrap();
@@ -287,6 +293,7 @@ mod tests {
         
         let state = AppState {
             db_pool: std::sync::Arc::new(db_pool),
+            llm_log_dir: "./logs/llm".to_string(),
         };
         
         // Invalid payload without required properties - this should be handled gracefully

@@ -24,8 +24,9 @@ mod chat_stream_tests {
         
         let db_pool = sqlx::SqlitePool::connect_with(conn).await.unwrap();
         
-        let app_state = AppState {
+let app_state = AppState {
             db_pool: Arc::new(db_pool),
+            llm_log_dir: "./logs/llm".to_string(),
         };
 
         let payload = json!({
@@ -62,8 +63,9 @@ mod chat_stream_tests {
         
         let db_pool = sqlx::SqlitePool::connect_with(conn).await.unwrap();
         
-        let app_state = AppState {
+let app_state = AppState {
             db_pool: Arc::new(db_pool),
+            llm_log_dir: "./logs/llm".to_string(),
         };
 
         let payload = json!({
@@ -126,8 +128,9 @@ mod chat_stream_tests {
         
         let db_pool = sqlx::SqlitePool::connect_with(conn).await.unwrap();
         
-        let app_state = AppState {
+let app_state = AppState {
             db_pool: Arc::new(db_pool),
+            llm_log_dir: "./logs/llm".to_string(),
         };
 
         let payload = json!({

@@ -15,8 +15,9 @@ mod chat_functionality_tests {
     async fn test_agent_chat_handler_basic_functionality() {
         // Create mock app state (not connected to the actual functionality for this test)
         let dummy_pool = create_dummy_db_pool().await;
-        let app_state = AppState {
+let app_state = AppState {
             db_pool: Arc::new(dummy_pool),
+            llm_log_dir: "./logs/llm".to_string(),
         };
 
         let payload = json!({
@@ -43,8 +44,9 @@ mod chat_functionality_tests {
     async fn test_agent_stream_chat_handler_produces_events() {
         // Create mock app state
         let dummy_pool = create_dummy_db_pool().await;
-        let app_state = AppState {
+let app_state = AppState {
             db_pool: Arc::new(dummy_pool),
+            llm_log_dir: "./logs/llm".to_string(),
         };
 
         let payload = json!({
@@ -101,8 +103,9 @@ mod chat_functionality_tests {
     #[tokio::test]
     async fn test_stream_handles_different_messages() {
         let dummy_pool = create_dummy_db_pool().await;
-        let app_state = AppState {
+let app_state = AppState {
             db_pool: Arc::new(dummy_pool),
+            llm_log_dir: "./logs/llm".to_string(),
         };
 
         let test_cases = vec![

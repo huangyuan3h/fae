@@ -155,10 +155,13 @@ pub async fn agent_stream_chat_handler(
     let agent_id = payload.agent_id.clone();
     let message = payload.message.clone();
     let db_pool = state.db_pool.clone();
+    let llm_log_dir = state.llm_log_dir.clone();
+    let session_id = llm::generate_session_id();
     
     info!("[AGENT CHAT] ===== New Request =====");
     info!("[AGENT CHAT] Agent ID: {}", agent_id);
     info!("[AGENT CHAT] User Message: {}", message);
+    info!("[AGENT CHAT] Session ID: {}", session_id);
 
     let stream = async_stream::stream! {
         let agent = get_agent_by_id(&db_pool, &agent_id).await;
@@ -168,6 +171,19 @@ pub async fn agent_stream_chat_handler(
                 info!("[AGENT] Found agent: {} (provider: {}, model: {})", 
                     agent.name, agent.provider, agent.model);
                 info!("[AGENT] Skills: {:?}", agent.skills);
+                
+                let logger = match llm::LLMLogger::new(&llm_log_dir, &session_id, &agent_id, &agent.name) {
+                    Ok(l) => Some(l),
+                    Err(e) => {
+                        info!("[LLMLogger] Failed to create logger: {}", e);
+                        None
+                    }
+                };
+                
+                if let Some(ref logger) = logger {
+                    logger.log_session_start();
+                    logger.log_user_message(&message);
+                }
                 
                 let provider_config = if let Some(ref config_id) = agent.provider_config_id {
                     match get_provider_config(&db_pool, config_id).await {
@@ -216,11 +232,16 @@ pub async fn agent_stream_chat_handler(
 
                 info!("[LLM] System prompt: {}", system_prompt);
                 info!("[LLM] Tools enabled: {:?}", tools.as_ref().map(|t| t.len()));
+                
+                if let Some(ref logger) = logger {
+                    logger.log_system_prompt(&system_prompt);
+                    logger.log_llm_request(&provider_type, &model, &base_url, 2, tools.as_ref().map(|t| t.len()));
+                }
 
                 let messages = vec![
                     llm::ChatMessage {
                         role: "system".to_string(),
-                        content: system_prompt,
+                        content: system_prompt.clone(),
                         tool_calls: None,
                     },
                     llm::ChatMessage {
@@ -256,6 +277,9 @@ pub async fn agent_stream_chat_handler(
                                     for tc in tool_calls {
                                         info!("[TOOL CALL] Tool: {}, Args: {}", 
                                             tc.function.name, tc.function.arguments);
+                                        if let Some(ref logger) = logger {
+                                            logger.log_tool_call(&tc.id, &tc.function.name, &tc.function.arguments);
+                                        }
                                         tool_calls_to_execute.push(tc.clone());
                                     }
                                 }
@@ -263,6 +287,9 @@ pub async fn agent_stream_chat_handler(
 
                             if response.done {
                                 info!("[LLM] Stream completed. Total content length: {}", accumulated_content.len());
+                                if let Some(ref logger) = logger {
+                                    logger.log_assistant_message(&accumulated_content);
+                                }
                                 break;
                             }
                         }
@@ -285,6 +312,10 @@ pub async fn agent_stream_chat_handler(
 
                             let tool_result = format!("Tool '{}' executed successfully for input: {}", tool_name, args);
                             info!("[TOOL] Result: {}", tool_result);
+                            
+                            if let Some(ref logger) = logger {
+                                logger.log_tool_result(&tool_call_id, &tool_name, &tool_result);
+                            }
 
                             yield Ok(Event::default().data(serde_json::to_string(&serde_json::json!({
                                 "type": "tool-result",
@@ -301,6 +332,10 @@ pub async fn agent_stream_chat_handler(
                                 "type": "think",
                                 "content": "Processing tool results..."
                             })).unwrap()));
+                            
+                            if let Some(ref logger) = logger {
+                                logger.log_thinking("Processing tool results...");
+                            }
 
                             let mut messages_with_results = messages.clone();
                             messages_with_results.push(llm::ChatMessage {
@@ -319,9 +354,11 @@ pub async fn agent_stream_chat_handler(
 
                             match llm_client.chat_stream(&model, messages_with_results, tools).await {
                                 Ok((mut rx2, _)) => {
+                                    let mut final_content = String::new();
                                     while let Some(response) = rx2.recv().await {
                                         if let Some(msg) = &response.message {
                                             if !msg.content.is_empty() {
+                                                final_content.push_str(&msg.content);
                                                 yield Ok(Event::default().data(serde_json::to_string(&serde_json::json!({
                                                     "type": "chunk",
                                                     "content": &msg.content
@@ -330,12 +367,18 @@ pub async fn agent_stream_chat_handler(
                                         }
                                         if response.done {
                                             info!("[LLM] Final response completed");
+                                            if let Some(ref logger) = logger {
+                                                logger.log_assistant_message(&final_content);
+                                            }
                                             break;
                                         }
                                     }
                                 }
                                 Err(e) => {
                                     info!("[LLM ERROR] Failed to get final response: {}", e);
+                                    if let Some(ref logger) = logger {
+                                        logger.log_error(&format!("Failed to process tool results: {}", e));
+                                    }
                                     yield Ok(Event::default().data(serde_json::to_string(&serde_json::json!({
                                         "type": "error",
                                         "message": format!("Failed to process tool results: {}", e)
@@ -345,9 +388,15 @@ pub async fn agent_stream_chat_handler(
                         }
 
                         yield Ok(Event::default().data("[DONE]"));
+                        if let Some(ref logger) = logger {
+                            logger.log_session_end();
+                        }
                     }
                     Err(e) => {
                         info!("[LLM ERROR] {}", e);
+                        if let Some(ref logger) = logger {
+                            logger.log_error(&format!("LLM error: {}", e));
+                        }
                         yield Ok(Event::default().data(serde_json::to_string(&serde_json::json!({
                             "type": "error",
                             "message": format!("LLM error: {}", e)

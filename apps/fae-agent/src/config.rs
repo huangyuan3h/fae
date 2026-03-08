@@ -8,6 +8,7 @@ pub struct Settings {
     pub port: u16,
     pub database_url: String,
     pub cors_origins: Vec<String>,
+    pub llm_log_dir: String,
 }
 
 impl Settings {
@@ -26,6 +27,7 @@ impl Settings {
                 .split(',')
                 .map(|s| s.trim().to_string())
                 .collect(),
+            llm_log_dir: env::var("LLM_LOG_DIR").unwrap_or_else(|_| "./logs/llm".to_string()),
         })
     }
 
