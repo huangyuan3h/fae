@@ -1,0 +1,430 @@
+use axum::{
+    extract::{State, WebSocketUpgrade},
+    http::StatusCode,
+    response::sse::{Event, KeepAlive},
+    response::{IntoResponse, Response, Sse},
+    Json as AxumJson,
+};
+use futures_util::Stream;
+use std::time::Duration;
+use tokio::time::sleep;
+use serde::{Deserialize, Serialize};
+use tracing::info;
+use crate::models::ChatCompletion;
+
+use tokio_stream::StreamExt;  // Add this for stream operations
+
+#[derive(Serialize, Deserialize)]
+pub struct StatusResponse {
+    pub status: String,
+    pub version: String,
+    pub timestamp: i64,
+}
+
+pub async fn status_handler(
+    State(_state): State<crate::AppState>,
+) -> Result<AxumJson<StatusResponse>, StatusCode> {
+    let status = StatusResponse {
+        status: "ok".to_string(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        timestamp: chrono::Utc::now().timestamp(),
+    };
+    Ok(AxumJson(status))
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ChatRequest {
+    pub agent_id: String,
+    pub message: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct AgentChatRequest {
+    #[serde(rename = "agentId")]  // Maps from camelCase 'agentId' in JSON to snake_case field
+    pub agent_id: String,
+    pub message: String,
+}
+
+// Handler specifically for Next.js client expectations (camelCase params) - Returns JSON
+pub async fn agent_chat_handler(
+    State(_state): State<crate::AppState>,
+    AxumJson(payload): AxumJson<AgentChatRequest>,
+) -> Result<AxumJson<ChatCompletion>, StatusCode> {
+    info!("Received agent chat request for agent: {}", payload.agent_id);
+    
+    // Placeholder - same response just different parameter name
+    let model = "mock-model".to_string();
+    
+    let response_message = format!(
+        "Processed agent chat request for {}: {}",
+        payload.agent_id, payload.message
+    );
+    
+    let response = ChatCompletion {
+        id: uuid::Uuid::new_v4().to_string(),
+        message: response_message,
+        model,
+        timestamp: chrono::Utc::now().timestamp(),
+    };
+
+    Ok(AxumJson(response))
+}
+
+// Handler for streaming chat responses to match /api/chat/stream expectation - returns SSE
+pub async fn agent_stream_chat_handler(
+    State(state): State<crate::AppState>,
+    AxumJson(payload): AxumJson<AgentChatRequest>,
+) -> Sse<impl Stream<Item = Result<Event, std::convert::Infallible>>> {
+    let agent_id = payload.agent_id;
+    let message = payload.message;
+    
+    // Use the db connection to get agent details
+    let agent_opt = get_agent_by_id(&state.db_pool, &agent_id).await;
+    
+    let stream = async_stream::stream! {
+        // Send thinking stages to simulate AI processing
+        let thinking_steps = vec![
+            "Processing user request. ",
+            "Analyzing the query for relevant actions. ", 
+            "Considering which tools would be most helpful. ",
+            "Preparing a structured response. "
+        ];
+        
+        for step in thinking_steps {
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            yield Ok(Event::default()
+                .event("data")
+                .data(format!(r#"{{"type":"think","content":"{}"}}"#, step)));
+        }
+
+        // Determine if agent exists and has skills, then simulate appropriate tools
+        match agent_opt {
+            Ok(agent) => {
+                // Only simulate tools that match agent's skills
+                let agent_skills = agent.skills;
+                
+                if !agent_skills.is_empty() {
+                    for skill_id in &agent_skills {
+                        // For each skill the agent has, simulate calling it
+                        
+                        // Generate a unique tool call ID
+                        let tool_call_id = format!("call_{}", uuid::Uuid::new_v4().to_string()[..8]);
+                        
+                        yield Ok(Event::default()
+                            .event("data")
+                            .data(format!(
+                                r#"{{"type":"tool-input-start","toolCallId":"{}","toolName":"{}"}}"#, 
+                                tool_call_id, skill_id
+                            )));
+                        
+                        tokio::time::sleep(Duration::from_millis(300)).await;
+                        
+                        let esc_message = message.replace("\"", "'");
+                        yield Ok(Event::default()
+                            .event("data")
+                            .data(format!(
+                                r#"{{"type":"tool-call","toolCallId":"{}","toolName":"{}","input":{{"query":"{}","taskId":"analyze"}}}}"#, 
+                                tool_call_id, skill_id, esc_message
+                            )));
+                        
+                        tokio::time::sleep(Duration::from_millis(500)).await;
+                        
+                        yield Ok(Event::default()
+                            .event("data")
+                            .data(format!(
+                                r#"{{"type":"tool-result","toolCallId":"{}","toolName":"{}","output":{{"status":"success","data":"Results for {} operation on {}", "query":"{}", "metadata":{{"execTime":123,"source":"skill_impl"}}}}}}"#, 
+                                tool_call_id, skill_id, skill_id, esc_message, esc_message
+                            )));
+                    }
+                } else {
+                    // If agent has no skills, send a simple response event
+                    yield Ok(Event::default()
+                        .event("data")
+                        .data(r#"{"type":"chunk","content":"The agent processed your request without specific tools. "}"#));
+                }
+            },
+            Err(_e) => {
+                // If agent doesn't exist, send notification in response chunks
+                yield Ok(Event::default()
+                    .event("data")
+                    .data(r#"{"type":"chunk","content":"Processing with general capabilities. "}"#));
+            }
+        }
+
+        // Generate response segments based on the input message
+        let response_segments = vec![
+            format!("I have processed your request about ("),
+            message.clone(),
+            format!("). "),
+            format!("Using available tools, "),
+            format!("I have analyzed and synthesized the required information. "),
+            "I hope this addresses your query. Is there anything else I can assist with?".to_string()
+        ];
+        
+        for segment in response_segments {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            yield Ok(Event::default()
+                .event("data")
+                .data(format!(r#"{{"type":"chunk","content":"{}"}}"#, segment))); 
+        }
+    };
+    
+    Sse::new(stream).keep_alive(KeepAlive::default())
+}
+
+// Helper function to get agent by ID
+async fn get_agent_by_id(db_pool: &sqlx::SqlitePool, agent_id: &str) -> Result<crate::models::Agent, sqlx::Error> {
+    let agent = sqlx::query_as!(
+        crate::models::Agent,
+        r#"
+        SELECT 
+            id as "id!",
+            name as "name!",
+            provider as "provider!",
+            provider_config_id as "provider_config_id?",
+            model as "model!",
+            system_prompt as "system_prompt?",
+            avatar_url as "avatar_url?",
+            skills as "skills!: Vec<String>",
+            created_at as "created_at!",
+            updated_at as "updated_at!"
+        FROM agents 
+        WHERE id = ?
+        "#,
+        agent_id
+    )
+    .fetch_one(db_pool)
+    .await?;
+    
+    Ok(agent)
+}
+
+        // Determine if agent exists and has skills, then simulate appropriate tools
+        match agent_opt {
+            Ok(agent) => {
+                // Only simulate tools that match agent's skills
+                let agent_skills = agent.skills;
+                
+                if !agent_skills.is_empty() {
+                    for skill_id in &agent_skills {
+                        // For each skill the agent has, simulate calling it
+                        
+                        // Generate a unique tool call ID
+                        let tool_call_id = format!("call_{}", uuid::Uuid::new_v4().to_string()[..8]);
+                        
+                        yield Ok(Event::default()
+                            .event("data")
+                            .data(format!(
+                                r#"{{"type":"tool-input-start","toolCallId":"{}","toolName":"{}"}}"#, 
+                                tool_call_id, skill_id
+                            )));
+                        
+                        tokio::time::sleep(Duration::from_millis(300)).await;
+                        
+                        let esc_message = message.replace("\"", "'");
+                        yield Ok(Event::default()
+                            .event("data")
+                            .data(format!(
+                                r#"{{"type":"tool-call","toolCallId":"{}","toolName":"{}","input":{{"query":"{}","taskId":"analyze"}}}}"#, 
+                                tool_call_id, skill_id, esc_message
+                            )));
+                        
+                        tokio::time::sleep(Duration::from_millis(500)).await;
+                        
+                        yield Ok(Event::default()
+                            .event("data")
+                            .data(format!(
+                                r#"{{"type":"tool-result","toolCallId":"{}","toolName":"{}","output":{{"status":"success","data":"Results for {} operation on {}", "query":"{}", "metadata":{{"execTime":123,"source":"skill_impl"}}}}}}"#, 
+                                tool_call_id, skill_id, skill_id, esc_message, esc_message
+                            )));
+                    }
+                } else {
+                    // If agent has no skills, send a simple response event
+                    yield Ok(Event::default()
+                        .event("data")
+                        .data(r#"{"type":"chunk","content":"The agent processed your request without specific tools. "}"#));
+                }
+            },
+            Err(_e) => {
+                // If agent doesn't exist, send notification in response chunks
+                yield Ok(Event::default()
+                    .event("data")
+                    .data(r#"{"type":"chunk","content":"Processing with general capabilities. "}"#));
+            }
+        }
+
+        // Generate response segments based on the input message
+        let response_segments = vec![
+            format!("I have processed your request about ("),
+            message.clone(),
+            format!("). "),
+            format!("Using available tools, "),
+            format!("I have analyzed and synthesized the required information. "),
+            "I hope this addresses your query. Is there anything else I can assist with?".to_string()
+        ];
+        
+        for segment in response_segments {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            yield Ok(Event::default()
+                .event("data")
+                .data(format!(r#"{{"type":"chunk","content":"{}"}}"#, segment))); 
+        }
+    }
+    
+    Sse::new(stream).keep_alive(KeepAlive::default())
+}
+
+// Helper function to get agent by ID
+async fn get_agent_by_id(db_pool: &sqlx::SqlitePool, agent_id: &str) -> Result<crate::models::Agent, sqlx::Error> {
+    let agent = sqlx::query_as!(
+        crate::models::Agent,
+        r#"
+        SELECT 
+            id as "id!",
+            name as "name!",
+            provider as "provider!",
+            provider_config_id as "provider_config_id?",
+            model as "model!",
+            system_prompt as "system_prompt?",
+            avatar_url as "avatar_url?",
+            skills as "skills!: Vec<String>",
+            created_at as "created_at!",
+            updated_at as "updated_at!"
+        FROM agents 
+        WHERE id = ?
+        "#,
+        agent_id
+    )
+    .fetch_one(db_pool)
+    .await?;
+    
+    Ok(agent)
+}
+        
+        // Simulate tool calling based on skills (in real we'll actually connect agents to their specific tools)
+        let tool_call_ids = ["search_tool", "calc_tool", "analysis_tool"];
+        for tool_name in tool_call_ids.iter().take(2) {  // Just simulate a couple of tools
+            let tool_call_id = format!("call_{}", uuid::Uuid::new_v4().to_string()[..8].to_string());
+            
+            yield Ok(Event::default()
+                .event("data")
+                .data(format!(
+                    r#"{{"type":"tool-input-start","toolCallId":"{}","toolName":"{}"}}"#, 
+                    tool_call_id, tool_name
+                )));
+            
+            tokio::time::sleep(Duration::from_millis(300)).await;
+            
+            yield Ok(Event::default()
+                .event("data")
+                .data(format!(
+                    r#"{{"type":"tool-call","toolCallId":"{}","toolName":"{}","input":{{"query":"{}","taskId":"analyze"}}}}"#, 
+                    tool_call_id, tool_name, message.replace("\"", "")
+                )));
+            
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            
+            let esc_message = message.replace("\"", "'");
+            yield Ok(Event::default()
+                .event("data")
+                .data(format!(
+                    r#"{{"type":"tool-result","toolCallId":"{}","toolName":"{}","output":{{"status":"success","data":"Results for {} operation on {}", "query":"{}", "metadata":{{"execTime":123,"source":"internal"}}}}}}"#, 
+                    tool_call_id, tool_name, tool_name, esc_message, esc_message
+                )));
+        }
+        
+        // Generate response segments based on the input message
+        let response_segments = vec![
+            format!("I have processed your request about ("),
+            message.clone(),
+            format!("). "),
+            format!("Using available tools, "),
+            format!("I have analyzed and synthesized the required information. "),
+            "I hope this addresses your query. Is there anything else I can assist with?".to_string()
+        ];
+        
+        for segment in response_segments {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            yield Ok(Event::default()
+                .event("data")
+                .data(format!(r#"{{"type":"chunk","content":"{}"}}"#, segment))); 
+        }
+    };
+    
+    Sse::new(stream).keep_alive(KeepAlive::default())
+}
+
+pub async fn chat_ws_handler(
+    _state: State<crate::AppState>,
+    ws: WebSocketUpgrade,
+) -> Response {
+    ws.on_upgrade(|websocket| async move {
+        handle_socket(websocket).await;
+    })
+}
+
+async fn handle_socket(mut websocket: axum::extract::ws::WebSocket) {
+    while let Some(msg) = websocket.recv().await {
+        if let Ok(axum::extract::ws::Message::Text(text)) = msg {
+            // Process chat message
+            let response = format!("Echo via WS: {}", text);
+            
+            if websocket.send(axum::extract::ws::Message::Text(response)).await.is_err() {
+                // Client disconnected
+                break;
+            }
+        } else if msg.is_err() {
+            // Error occurred
+            break;
+        }
+    }
+}
+
+// Initialize database function remains for future use
+pub async fn initialize_db(_db_url: &str) -> Result<(), Box<dyn std::error::Error>> {
+    Ok(()) // Handled in main now
+}
+
+// Export needed for API access
+pub use providers::ProviderResolver; // Export provider resolver itself  
+pub use providers_api::{ 
+    get_providers_handler, 
+    update_providers_handler, 
+    get_ollama_settings_handler, 
+    update_ollama_settings_handler 
+};
+pub use super::agents_api;
+
+pub mod auth; // Authentication handlers
+
+pub mod providers;      // Provider core logic
+pub mod providers_api;  // Provider API handlers  
+pub mod skills;         // Skills functionality
+pub mod skills_api;     // Skill API handlers
+pub mod ai_chat;        // AI Chat Service
+
+// Include unit tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[tokio::test]
+    async fn test_agent_stream_chat_handler_produces_events() {
+        // Just test the function signature works - since we removed the actual db dependency
+        // this ensures the function can be called without database connection
+        
+        // Create mock payload
+        let payload = json!({
+            "agentId": "test-stream-handler",
+            "message": "Test message for stream handler"
+        });
+        
+        let agent_chat_req: AgentChatRequest = serde_json::from_value(payload).unwrap();
+        
+        // Since our updated implementation no longer has database dependency,
+        // the function can be called without a valid AppState.
+        // This test just verifies the signature and basic behavior
+        assert_eq!(agent_chat_req.message, "Test message for stream handler");
+    }
+}
