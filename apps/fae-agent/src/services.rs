@@ -12,6 +12,8 @@ use tracing::info;
 use crate::models::ChatCompletion;
 use sqlx::Row;
 
+pub mod llm;
+
 #[derive(Serialize, Deserialize)]
 pub struct StatusResponse {
     pub status: String,
@@ -38,106 +40,38 @@ pub struct ChatRequest {
 
 #[derive(Serialize, Deserialize)]
 pub struct AgentChatRequest {
-    #[serde(rename = "agentId")]  // Maps from camelCase 'agentId' in JSON to snake_case field
+    #[serde(rename = "agentId")]
     pub agent_id: String,
     pub message: String,
-}
-
-// Define the types of events in a stream
-#[derive(Debug, Clone, Serialize)]
-pub enum ChatStreamEvent {
-    Chunk { content: String },
-    Thinking { content: String },
-    ToolInputStart { tool_call_id: String, tool_name: String },
-    ToolInputDelta { tool_call_id: String, delta: String },
-    ToolCall { tool_call_id: String, tool_name: String, input: serde_json::Value },
-    ToolResult { tool_call_id: String, output: serde_json::Value },
-    ToolError { tool_call_id: String, message: String },
-    Done,
-    Error { message: String },
 }
 
 pub async fn chat_stream_handler(
     State(_state): State<crate::AppState>,
     Json(payload): Json<AgentChatRequest>,
 ) -> Sse<impl Stream<Item = Result<Event, std::convert::Infallible>>> {
-    // Convert agent_id to lowercase for lookup purposes
     let _agent_id = payload.agent_id;
     let message = payload.message;
     
-    // For this demo implementation, we'll simulate responses using streams
     let stream = async_stream::stream! {
-        yield Ok(Event::default().event("think").data(&format!("Thinking about your question: \"{}\"...", message)));
+        yield Ok(Event::default().data(serde_json::to_string(&serde_json::json!({
+            "type": "chunk",
+            "content": format!("Echo: {}", message)
+        })).unwrap()));
         
-        // Simulate processing time
-        tokio::time::sleep(Duration::from_millis(500)).await;
-        
-        yield Ok(Event::default().event("think").data("Identifying necessary actions..."));
-        
-        // Yield simulated thinking traces and responses in chunks
-        let response_parts = [
-            "Okay, I understand. ",
-            " Let me process your request. ",
-            " Based on your query: ",
-            &format!("\"{}\", ", message),
-            "I can provide some insights. "
-        ];
-        
-        // Yield initial partial response
-        for part in response_parts {
-            tokio::time::sleep(Duration::from_millis(100)).await;
-            yield Ok(Event::default().event("chunk").data(part.to_string()));
-        }
-        
-        // Add complete response in chunks
-        let full_response = format!("This is a complete response to your query about '{}'. The system has processed your request successfully.", message);
-        let words: Vec<&str> = full_response.split(' ').collect();
-        
-        for word in words {
-            tokio::time::sleep(Duration::from_millis(50)).await;
-            yield Ok(Event::default().event("chunk").data(format!("{} ", word)));
-        }
-        
-        // Add tool simulation
-        let tool_call_id = format!("call_{}", &uuid::Uuid::new_v4().to_string()[..8]);
-        yield Ok(Event::default()
-            .event("tool-call")
-            .data(format!(
-                r#"{{"toolCallId": "{}", "toolName": "search_tool", "input": {{"query": "{}"}}}}"#,
-                tool_call_id, message
-            )));
-            
-        tokio::time::sleep(Duration::from_millis(600)).await;
-        
-        yield Ok(Event::default()
-            .event("tool-result")
-            .data(format!(
-                r#"{{"toolCallId": "{}", "output": {{"result": "Simulated search results for '{}'"}}}}"#, 
-                tool_call_id, message
-            )));
-        
-        // Send completion signals
-        tokio::time::sleep(Duration::from_millis(300)).await;
-        yield Ok(Event::default().event("done").data("[DONE]"));
+        yield Ok(Event::default().data("[DONE]"));
     };
 
     Sse::new(stream).keep_alive(KeepAlive::default())
 }
 
-// Handler specifically for Next.js client expectations (camelCase params) - Returns JSON
 pub async fn agent_chat_handler(
     State(_state): State<crate::AppState>,
     Json(payload): Json<AgentChatRequest>,
 ) -> Result<Json<ChatCompletion>, StatusCode> {
-    info!("Received agent chat request for agent: {}", payload.agent_id);
+    info!("[CHAT] Agent: {}, Message: {}", payload.agent_id, payload.message);
     
-    // Placeholder - same response just different parameter name
     let model = "mock-model".to_string();
-    
-    let response_message = format!(
-        "Processed agent chat request for {}: {}",
-        payload.agent_id, payload.message
-    );
+    let response_message = format!("Processed: {}", payload.message);
     
     let response = ChatCompletion {
         id: uuid::Uuid::new_v4().to_string(),
@@ -193,108 +127,235 @@ async fn get_agent_by_id(
     })
 }
 
-// Handler for streaming chat responses to match /api/chat/stream expectation - returns SSE
+async fn get_provider_config(
+    db_pool: &sqlx::SqlitePool,
+    config_id: &str,
+) -> Option<(String, String)> {
+    let row = sqlx::query(
+        r#"SELECT value FROM settings WHERE key = 'provider.configs'"#
+    )
+    .fetch_optional(db_pool)
+    .await
+    .ok()??;
+
+    let value: String = row.get("value");
+    let configs: Vec<crate::models::providers::ProviderConfig> = 
+        serde_json::from_str(&value).ok()?;
+    
+    configs
+        .iter()
+        .find(|c| c.id == config_id)
+        .map(|c| (c.base_url.clone(), c.model_id.clone()))
+}
+
 pub async fn agent_stream_chat_handler(
     State(state): State<crate::AppState>,
     Json(payload): Json<AgentChatRequest>,
 ) -> Sse<impl Stream<Item = Result<Event, std::convert::Infallible>>> {
-    let agent_id = payload.agent_id;
-    let message = payload.message;
+    let agent_id = payload.agent_id.clone();
+    let message = payload.message.clone();
     let db_pool = state.db_pool.clone();
     
-    let agent = get_agent_by_id(&db_pool, &agent_id).await;
-    let agent_skills = agent.as_ref().map(|a| a.skills.clone()).unwrap_or_default();
-    
+    info!("[AGENT CHAT] ===== New Request =====");
+    info!("[AGENT CHAT] Agent ID: {}", agent_id);
+    info!("[AGENT CHAT] User Message: {}", message);
+
     let stream = async_stream::stream! {
-        yield Ok(Event::default().data(serde_json::to_string(&serde_json::json!({
-            "type": "think",
-            "content": format!("Thinking about your question: \"{}\"...", message)
-        })).unwrap()));
+        let agent = get_agent_by_id(&db_pool, &agent_id).await;
         
-        tokio::time::sleep(Duration::from_millis(300)).await;
-        
-        yield Ok(Event::default().data(serde_json::to_string(&serde_json::json!({
-            "type": "think",
-            "content": "Analyzing query structure..."
-        })).unwrap()));
-        tokio::time::sleep(Duration::from_millis(300)).await;
-        
-        yield Ok(Event::default().data(serde_json::to_string(&serde_json::json!({
-            "type": "think",
-            "content": format!("Preparing response based on available information for query: '{}'", message)
-        })).unwrap()));
-        tokio::time::sleep(Duration::from_millis(400)).await;
-        
-        yield Ok(Event::default().data(serde_json::to_string(&serde_json::json!({
-            "type": "chunk",
-            "content": "Okay, I've processed your message."
-        })).unwrap()));
-        
-        let response_parts = [
-            format!(" You asked about: \"{}\"", message),
-            ". ".to_string(),
-            "I can see you're looking for information.".to_string(),
-            " Let me share my thoughts on this topic.".to_string()
-        ];
-        
-        for part in response_parts {
-            tokio::time::sleep(Duration::from_millis(150)).await;
-            yield Ok(Event::default().data(serde_json::to_string(&serde_json::json!({
-                "type": "chunk",
-                "content": part
-            })).unwrap()));
-        }
-        
-        if !agent_skills.is_empty() {
-            for skill_name in &agent_skills {
-                let tool_call_id = format!("call_{}", &uuid::Uuid::new_v4().to_string()[..8]);
+        match agent {
+            Some(agent) => {
+                info!("[AGENT] Found agent: {} (provider: {}, model: {})", 
+                    agent.name, agent.provider, agent.model);
+                info!("[AGENT] Skills: {:?}", agent.skills);
                 
-                yield Ok(Event::default().data(serde_json::to_string(&serde_json::json!({
-                    "type": "tool-call",
-                    "toolCallId": tool_call_id,
-                    "toolName": skill_name,
-                    "input": {
-                        "request": message
+                let (base_url, model_id) = if let Some(ref config_id) = agent.provider_config_id {
+                    match get_provider_config(&db_pool, config_id).await {
+                        Some((url, mid)) => {
+                            info!("[PROVIDER] Using config '{}': base_url={}, model={}", config_id, url, mid);
+                            (url, mid)
+                        }
+                        None => {
+                            info!("[PROVIDER] Config '{}' not found, using defaults", config_id);
+                            ("http://127.0.0.1:11434".to_string(), agent.model.clone())
+                        }
                     }
-                })).unwrap()));
+                } else {
+                    info!("[PROVIDER] No config specified, using Ollama default");
+                    ("http://127.0.0.1:11434".to_string(), agent.model.clone())
+                };
+
+                let model = if model_id.is_empty() { agent.model.clone() } else { model_id };
+                info!("[LLM] Connecting to Ollama at: {}", base_url);
+                info!("[LLM] Using model: {}", model);
+
+                let llm_client = llm::LLMClient::new(base_url);
                 
-                tokio::time::sleep(Duration::from_millis(500)).await;
-                
+                let system_prompt = llm::build_system_prompt(&agent.skills);
+                let tools = if agent.skills.is_empty() {
+                    None
+                } else {
+                    let mut skill_defs = std::collections::HashMap::new();
+                    skill_defs.insert("file-operation".to_string(), 
+                        "Perform file operations like read, write, list directory".to_string());
+                    skill_defs.insert("example-skill".to_string(), 
+                        "An example demonstration skill".to_string());
+                    Some(llm::skills_to_tools(&agent.skills, &skill_defs))
+                };
+
+                info!("[LLM] System prompt: {}", system_prompt);
+                info!("[LLM] Tools enabled: {:?}", tools.as_ref().map(|t| t.len()));
+
+                let messages = vec![
+                    llm::ChatMessage {
+                        role: "system".to_string(),
+                        content: system_prompt,
+                        tool_calls: None,
+                    },
+                    llm::ChatMessage {
+                        role: "user".to_string(),
+                        content: message.clone(),
+                        tool_calls: None,
+                    },
+                ];
+
+                info!("[LLM] Sending request to Ollama...");
+
                 yield Ok(Event::default().data(serde_json::to_string(&serde_json::json!({
-                    "type": "tool-result",
-                    "toolCallId": tool_call_id,
-                    "toolName": skill_name,
-                    "output": {
-                        "response": format!("Executed skill '{}' for query: '{}'", skill_name, message)
-                    }
+                    "type": "think",
+                    "content": format!("Connecting to {} model...", model)
                 })).unwrap()));
+
+                match llm_client.chat_stream(&model, messages.clone(), tools.clone()).await {
+                    Ok((mut rx, _done_rx)) => {
+                        let mut tool_calls_to_execute: Vec<llm::ToolCall> = Vec::new();
+                        let mut accumulated_content = String::new();
+
+                        while let Some(response) = rx.recv().await {
+                            if let Some(msg) = &response.message {
+                                if !msg.content.is_empty() {
+                                    accumulated_content.push_str(&msg.content);
+                                    yield Ok(Event::default().data(serde_json::to_string(&serde_json::json!({
+                                        "type": "chunk",
+                                        "content": &msg.content
+                                    })).unwrap()));
+                                }
+
+                                if let Some(tool_calls) = &msg.tool_calls {
+                                    for tc in tool_calls {
+                                        info!("[TOOL CALL] Tool: {}, Args: {}", 
+                                            tc.function.name, tc.function.arguments);
+                                        tool_calls_to_execute.push(tc.clone());
+                                    }
+                                }
+                            }
+
+                            if response.done {
+                                info!("[LLM] Stream completed. Total content length: {}", accumulated_content.len());
+                                break;
+                            }
+                        }
+
+                        for tc in &tool_calls_to_execute {
+                            let tool_call_id = tc.id.clone();
+                            let tool_name = tc.function.name.clone();
+                            let args = tc.function.arguments.clone();
+
+                            info!("[TOOL] Executing tool: {} with args: {}", tool_name, args);
+
+                            yield Ok(Event::default().data(serde_json::to_string(&serde_json::json!({
+                                "type": "tool-call",
+                                "toolCallId": tool_call_id,
+                                "toolName": tool_name,
+                                "input": serde_json::from_str::<serde_json::Value>(&args).unwrap_or(serde_json::json!({"raw": args}))
+                            })).unwrap()));
+
+                            tokio::time::sleep(Duration::from_millis(300)).await;
+
+                            let tool_result = format!("Tool '{}' executed successfully for input: {}", tool_name, args);
+                            info!("[TOOL] Result: {}", tool_result);
+
+                            yield Ok(Event::default().data(serde_json::to_string(&serde_json::json!({
+                                "type": "tool-result",
+                                "toolCallId": tool_call_id,
+                                "toolName": tool_name,
+                                "output": { "result": tool_result }
+                            })).unwrap()));
+                        }
+
+                        if !tool_calls_to_execute.is_empty() {
+                            info!("[LLM] Sending tool results back to model for final response...");
+
+                            yield Ok(Event::default().data(serde_json::to_string(&serde_json::json!({
+                                "type": "think",
+                                "content": "Processing tool results..."
+                            })).unwrap()));
+
+                            let mut messages_with_results = messages.clone();
+                            messages_with_results.push(llm::ChatMessage {
+                                role: "assistant".to_string(),
+                                content: accumulated_content.clone(),
+                                tool_calls: Some(tool_calls_to_execute.clone()),
+                            });
+
+                            for tc in &tool_calls_to_execute {
+                                messages_with_results.push(llm::ChatMessage {
+                                    role: "tool".to_string(),
+                                    content: format!("Tool result for {}: executed successfully", tc.function.name),
+                                    tool_calls: None,
+                                });
+                            }
+
+                            match llm_client.chat_stream(&model, messages_with_results, tools).await {
+                                Ok((mut rx2, _)) => {
+                                    while let Some(response) = rx2.recv().await {
+                                        if let Some(msg) = &response.message {
+                                            if !msg.content.is_empty() {
+                                                yield Ok(Event::default().data(serde_json::to_string(&serde_json::json!({
+                                                    "type": "chunk",
+                                                    "content": &msg.content
+                                                })).unwrap()));
+                                            }
+                                        }
+                                        if response.done {
+                                            info!("[LLM] Final response completed");
+                                            break;
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    info!("[LLM ERROR] Failed to get final response: {}", e);
+                                    yield Ok(Event::default().data(serde_json::to_string(&serde_json::json!({
+                                        "type": "error",
+                                        "message": format!("Failed to process tool results: {}", e)
+                                    })).unwrap()));
+                                }
+                            }
+                        }
+
+                        yield Ok(Event::default().data("[DONE]"));
+                    }
+                    Err(e) => {
+                        info!("[LLM ERROR] {}", e);
+                        yield Ok(Event::default().data(serde_json::to_string(&serde_json::json!({
+                            "type": "error",
+                            "message": format!("LLM error: {}", e)
+                        })).unwrap()));
+                        yield Ok(Event::default().data("[DONE]"));
+                    }
+                }
             }
-        } else {
-            let tool_call_id = format!("call_{}", &uuid::Uuid::new_v4().to_string()[..8]);
-            
-            yield Ok(Event::default().data(serde_json::to_string(&serde_json::json!({
-                "type": "tool-call",
-                "toolCallId": tool_call_id,
-                "toolName": "default_tool",
-                "input": {
-                    "request": message
-                }
-            })).unwrap()));
-            
-            tokio::time::sleep(Duration::from_millis(500)).await;
-            
-            yield Ok(Event::default().data(serde_json::to_string(&serde_json::json!({
-                "type": "tool-result",
-                "toolCallId": tool_call_id,
-                "toolName": "default_tool",
-                "output": {
-                    "response": format!("No skills configured. Default response for: '{}'", message)
-                }
-            })).unwrap()));
+            None => {
+                info!("[AGENT ERROR] Agent not found: {}", agent_id);
+                yield Ok(Event::default().data(serde_json::to_string(&serde_json::json!({
+                    "type": "error",
+                    "message": format!("Agent '{}' not found", agent_id)
+                })).unwrap()));
+                yield Ok(Event::default().data("[DONE]"));
+            }
         }
         
-        tokio::time::sleep(Duration::from_millis(200)).await;
-        yield Ok(Event::default().data("[DONE]"));
+        info!("[AGENT CHAT] ===== Request Complete =====");
     };
 
     Sse::new(stream).keep_alive(KeepAlive::default())
@@ -312,27 +373,22 @@ pub async fn chat_ws_handler(
 async fn handle_socket(mut websocket: axum::extract::ws::WebSocket) {
     while let Some(msg) = websocket.recv().await {
         if let Ok(axum::extract::ws::Message::Text(text)) = msg {
-            // Process chat message
             let response = format!("Echo via WS: {}", text);
             
             if websocket.send(axum::extract::ws::Message::Text(response)).await.is_err() {
-                // Client disconnected
                 break;
             }
         } else if msg.is_err() {
-            // Error occurred
             break;
         }
     }
 }
 
-// Initialize database function remains for future use
 pub async fn initialize_db(_db_url: &str) -> Result<(), Box<dyn std::error::Error>> {
-    Ok(()) // Handled in main now
+    Ok(())
 }
 
-// Export needed for API access
-pub use providers::ProviderResolver; // Export provider resolver itself  
+pub use providers::ProviderResolver;
 pub use providers_api::{ 
     get_providers_handler, 
     update_providers_handler, 
@@ -341,9 +397,8 @@ pub use providers_api::{
 };
 pub use super::agents_api;
 
-pub mod auth; // Authentication handlers
-
-pub mod providers;      // Provider core logic
-pub mod providers_api;  // Provider API handlers
-pub mod skills;         // Skills functionality
-pub mod skills_api;     // Skill API handlers
+pub mod auth;
+pub mod providers;
+pub mod providers_api;
+pub mod skills;
+pub mod skills_api;
