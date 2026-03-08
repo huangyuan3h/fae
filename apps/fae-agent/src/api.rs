@@ -25,9 +25,9 @@ pub fn create_app(state: crate::AppState) -> Router {
         .route("/api/agents", post(super::agents_api::create_agent_handler))
         .route("/api/agents/:id", put(super::agents_api::update_agent_handler))
         .route("/api/agents/:id", delete(super::agents_api::delete_agent_handler))
-        // Match exact Next.js path expectations: /api/chat versus /api/chat/stream
+        // API routes for chat services
         .route("/api/chat", post(super::services::agent_chat_handler))
-        .route("/api/chat/stream", post(super::services::chat_stream_handler))
+        .route("/api/chat/stream", post(super::services::agent_stream_chat_handler))
         // Provider API routes
         .route("/api/settings/providers", get(super::services::providers_api::get_providers_handler))
         .route("/api/settings/providers", put(super::services::providers_api::update_providers_handler))

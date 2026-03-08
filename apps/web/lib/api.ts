@@ -472,7 +472,7 @@ export async function streamChat(params: {
   onChunk: (chunk: string) => void;
   onEvent?: (event: ChatStreamEvent) => void;
 }): Promise<void> {
-  const response = await fetch(`${API_BASE}/api/chat`, {
+  const response = await fetch(`${API_BASE}/api/chat/stream`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

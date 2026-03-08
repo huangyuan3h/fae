@@ -26,6 +26,8 @@ futures = "0.3"
 tokio-tungstenite = "0.24"
 regex = "1.0"
 rand = "0.8"
+async-stream = "0.3"
+futures-util = "0.3"
 
 [profile.release]
 strip = true
