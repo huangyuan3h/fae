@@ -28,6 +28,7 @@ impl FolderValidator {
         }
     }
 
+    #[allow(dead_code)]
     pub fn from_settings(settings: FolderSettings) -> Self {
         let base_folder = settings.get_base_folder().cloned();
         Self {
@@ -62,6 +63,7 @@ impl FolderValidator {
         ))
     }
 
+    #[allow(dead_code)]
     pub fn get_base_folder(&self) -> Option<&AllowedFolder> {
         self.base_folder.as_ref()
     }

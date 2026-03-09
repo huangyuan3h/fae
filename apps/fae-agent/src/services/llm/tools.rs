@@ -86,6 +86,7 @@ impl BashTool {
         self.allowed_commands.contains(&command_name.to_string())
     }
 
+    #[allow(dead_code)]
     fn validate_path(&self, path: &str) -> Result<String, String> {
         let resolved_path = if Path::new(path).is_absolute() {
             Path::new(path).to_path_buf()
