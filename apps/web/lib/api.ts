@@ -108,6 +108,18 @@ export interface SkillItem {
   enabled: number;
 }
 
+export interface AllowedFolder {
+  id: string;
+  path: string;
+  name: string;
+  isBase: boolean;
+  createdAt: number;
+}
+
+export interface FolderSettings {
+  folderConfigs: AllowedFolder[];
+}
+
 export type ChatStreamEvent =
   | { type: "chunk"; content: string }
   | { type: "think-start"; id: string }
@@ -460,6 +472,40 @@ export async function updateOllamaSettings(params: {
 
   if (!result.data) {
     throw new Error("Failed to save settings");
+  }
+
+  return result.data;
+}
+
+export async function getFolderSettings(sessionToken: string): Promise<FolderSettings> {
+  const result = await requestJson<FolderSettings>(
+    "/api/settings/folders",
+    { method: "GET" },
+    sessionToken
+  );
+
+  if (!result.data) {
+    throw new Error("Failed to load folder settings");
+  }
+
+  return result.data;
+}
+
+export async function updateFolderSettings(params: {
+  sessionToken: string;
+  settings: FolderSettings;
+}): Promise<FolderSettings> {
+  const result = await requestJson<FolderSettings>(
+    "/api/settings/folders",
+    {
+      method: "PUT",
+      body: JSON.stringify(params.settings)
+    },
+    params.sessionToken
+  );
+
+  if (!result.data) {
+    throw new Error("Failed to save folder settings");
   }
 
   return result.data;

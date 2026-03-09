@@ -1,7 +1,7 @@
 use std::path::Path;
 use sqlx::SqlitePool;
 use crate::models::folders::{AllowedFolder, FolderSettings};
-use super::folders_api::{get_folder_settings, get_base_folder, create_default_base_folder};
+use crate::services::folders_api::{get_folder_settings, get_base_folder, create_default_base_folder};
 
 pub struct FolderValidator {
     allowed_folders: Vec<AllowedFolder>,

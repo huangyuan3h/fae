@@ -1,12 +1,15 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use sqlx::SqlitePool;
 
 use super::models::{ToolCall, ToolDefinition};
 use super::tools::{Tool, ToolResult, BashTool, ReadFileTool, WriteFileTool, ListDirectoryTool};
+use super::folder_validator::FolderValidator;
 
 pub struct ToolExecutor {
     tools: HashMap<String, Arc<dyn Tool>>,
     working_directory: String,
+    folder_validator: Option<FolderValidator>,
 }
 
 impl ToolExecutor {
@@ -14,6 +17,21 @@ impl ToolExecutor {
         let mut executor = Self {
             tools: HashMap::new(),
             working_directory,
+            folder_validator: None,
+        };
+
+        executor.register_default_tools();
+        executor
+    }
+
+    pub async fn with_folder_validation(db_pool: &SqlitePool) -> Self {
+        let validator = FolderValidator::new(db_pool).await;
+        let working_directory = validator.get_working_directory();
+        
+        let mut executor = Self {
+            tools: HashMap::new(),
+            working_directory: working_directory.clone(),
+            folder_validator: Some(validator),
         };
 
         executor.register_default_tools();
@@ -46,7 +64,64 @@ impl ToolExecutor {
             .collect()
     }
 
-    pub async fn execute_tool(&self, tool_name: &str, arguments: serde_json::Value) -> ToolResult {
+    fn validate_path_for_tool(&self, tool_name: &str, arguments: &mut serde_json::Value) -> Result<(), String> {
+        if let Some(validator) = &self.folder_validator {
+            if let Some(path) = arguments.get("path").and_then(|p| p.as_str()) {
+                let validated_path = validator.validate_path(path)?;
+                if let Some(args) = arguments.as_object_mut() {
+                    args.insert("path".to_string(), serde_json::json!(validated_path));
+                }
+            }
+            
+            if tool_name == "bash" {
+                if let Some(args) = arguments.get("args").and_then(|a| a.as_str()) {
+                    let validated_args = self.validate_bash_args(args, validator)?;
+                    if let Some(obj) = arguments.as_object_mut() {
+                        obj.insert("args".to_string(), serde_json::json!(validated_args));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn validate_bash_args(&self, args: &str, validator: &FolderValidator) -> Result<String, String> {
+        let path_patterns = [
+            ("cd ", 3),
+            ("ls ", 3),
+            ("cat ", 4),
+            ("mkdir ", 6),
+            ("touch ", 6),
+            ("rm ", 3),
+            ("cp ", 3),
+            ("mv ", 3),
+            ("grep ", 5),
+            ("find ", 5),
+            ("head ", 5),
+            ("tail ", 5),
+        ];
+
+        let mut validated_args = args.to_string();
+
+        for (cmd, len) in path_patterns.iter() {
+            if args.starts_with(cmd) {
+                let path_part = &args[*len..];
+                if !path_part.trim().is_empty() {
+                    let validated_path = validator.validate_path(path_part.trim())?;
+                    validated_args = format!("{}{}", cmd, validated_path);
+                }
+                break;
+            }
+        }
+
+        Ok(validated_args)
+    }
+
+    pub async fn execute_tool(&self, tool_name: &str, mut arguments: serde_json::Value) -> ToolResult {
+        if let Err(e) = self.validate_path_for_tool(tool_name, &mut arguments) {
+            return ToolResult::error(e);
+        }
+
         match self.tools.get(tool_name) {
             Some(tool) => tool.execute(arguments).await,
             None => ToolResult::error(format!("Unknown tool: {}", tool_name)),

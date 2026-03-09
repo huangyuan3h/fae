@@ -9,6 +9,7 @@ mod prompt_builder;
 mod service;
 mod tools;
 mod tool_executor;
+mod folder_validator;
 pub mod log;
 
 pub use models::{
