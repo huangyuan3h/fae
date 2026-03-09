@@ -486,3 +486,4 @@ pub mod providers;
 pub mod providers_api;
 pub mod skills;
 pub mod skills_api;
+pub mod folders_api;

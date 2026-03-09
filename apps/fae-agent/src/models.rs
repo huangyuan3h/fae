@@ -82,4 +82,5 @@ pub struct UpdateAgentRequest {
     pub skills: Vec<String>,
 }
 
+pub mod folders;
 pub mod providers;

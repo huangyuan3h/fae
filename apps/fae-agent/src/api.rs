@@ -33,6 +33,8 @@ pub fn create_app(state: crate::AppState) -> Router {
         .route("/api/settings/providers", put(super::services::providers_api::update_providers_handler))
         .route("/api/settings/ollama", get(super::services::providers_api::get_ollama_settings_handler))
         .route("/api/settings/ollama", put(super::services::providers_api::update_ollama_settings_handler))
+        .route("/api/settings/folders", get(super::services::folders_api::get_folders_handler))
+        .route("/api/settings/folders", put(super::services::folders_api::update_folders_handler))
         // Skill API routes 
         .route("/api/skills", get(super::services::skills_api::get_skills_handler))
         .route("/api/skills/:id", put(super::services::skills_api::update_skill_handler))
