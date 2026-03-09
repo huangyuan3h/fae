@@ -52,8 +52,19 @@ async fn main() -> Result<()> {
     sqlx::migrate!("./migrations").run(&db_pool).await
         .expect("Failed to run migrations");
 
-    tracing::info!("Database initialized successfully");
+tracing::info!("Database initialized successfully");
     
+    if services::folders_api::get_base_folder(&db_pool).await.is_none() {
+        match services::folders_api::create_default_base_folder(&db_pool).await {
+            Ok(folder) => {
+                tracing::info!("Created default workspace folder: {}", folder.path);
+            }
+            Err(e) => {
+                tracing::error!("Failed to create default workspace folder: {}", e);
+            }
+        }
+    }
+
     // Load skills automatically from the skills directory
     // First try relative to current working directory, then relative to parent if not found
     let mut skills_dir = std::env::current_dir()

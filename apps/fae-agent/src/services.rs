@@ -231,7 +231,7 @@ pub async fn agent_stream_chat_handler(
                     all_tools.extend(llm::skills_to_tools(&agent.skills, &skill_defs));
                 }
                 
-                let tool_executor = llm::ToolExecutor::default();
+                let tool_executor = llm::ToolExecutor::with_folder_validation(&db_pool).await;
                 all_tools.extend(tool_executor.get_tool_definitions());
                 
                 let tools = if all_tools.is_empty() {
@@ -322,7 +322,8 @@ pub async fn agent_stream_chat_handler(
 
                             tokio::time::sleep(Duration::from_millis(300)).await;
 
-                            let tool_result = match llm::ToolExecutor::default().execute_tool_call(tc).await {
+                            let tool_executor = llm::ToolExecutor::with_folder_validation(&db_pool).await;
+                            let tool_result = match tool_executor.execute_tool_call(tc).await {
                                 llm::ToolResult { success, output, error } => {
                                     if success {
                                         output
