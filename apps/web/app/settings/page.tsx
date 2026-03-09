@@ -1,8 +1,8 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
-import { Pencil, Plus, Trash2, X, Folder, Settings as SettingsIcon } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Pencil, Plus, Trash2, X, Folder, Settings as SettingsIcon, FolderOpen } from "lucide-react";
 import { AppShell } from "../../components/app-shell";
 import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import { Badge } from "../../components/ui/badge";
@@ -40,6 +40,7 @@ export default function SettingsPage() {
   const [folderPath, setFolderPath] = useState("");
   const [folderName, setFolderName] = useState("");
   const [isBase, setIsBase] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     ensureSessionToken(createDevSession)
@@ -96,6 +97,28 @@ export default function SettingsPage() {
     setFolderName(folder.name);
     setIsBase(folder.isBase);
     setModalOpen(true);
+  }
+
+  function handleSelectFolder() {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  }
+
+  function handleFolderChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const files = event.target.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      const pathParts = file.webkitRelativePath.split('/');
+      if (pathParts.length > 0) {
+        const folderName = pathParts[0];
+        setFolderName(folderName);
+        
+        const fullPath = file.webkitRelativePath;
+        const pathWithoutFileName = fullPath.substring(0, fullPath.lastIndexOf('/'));
+        setFolderPath(pathWithoutFileName || folderName);
+      }
+    }
   }
 
   async function saveFolderSettings(nextConfigs: AllowedFolder[]) {
@@ -330,15 +353,34 @@ export default function SettingsPage() {
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="folder-path">Folder Path</Label>
-                <Input
-                  id="folder-path"
-                  value={folderPath}
-                  onChange={(event) => setFolderPath(event.target.value)}
-                  placeholder="/Users/username/projects/workspace"
+                <Label>Folder Path</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={folderPath}
+                    onChange={(event) => setFolderPath(event.target.value)}
+                    placeholder="Click 'Browse' to select a folder"
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleSelectFolder}
+                  >
+                    <FolderOpen className="h-4 w-4 mr-2" />
+                    Browse
+                  </Button>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  onChange={handleFolderChange}
+                  style={{ display: 'none' }}
+                  // @ts-expect-error webkitdirectory is not in the type definition
+                  webkitdirectory=""
+                  directory=""
                 />
                 <p className="text-xs text-slate-500">
-                  Enter the absolute path to the folder you want to allow access to.
+                  Click 'Browse' to select a folder or enter the path manually.
                 </p>
               </div>
 

@@ -128,10 +128,10 @@ pub async fn get_base_folder(db_pool: &sqlx::SqlitePool) -> Option<AllowedFolder
 }
 
 pub async fn create_default_base_folder(db_pool: &sqlx::SqlitePool) -> Result<AllowedFolder, sqlx::Error> {
-    let default_path = std::env::current_dir()
-        .map(|p| p.join("fae-workspace"))
-        .unwrap_or_else(|_| std::path::PathBuf::from("./fae-workspace"));
-
+    let home_dir = dirs::home_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."));
+    
+    let default_path = home_dir.join(".fae");
     let path_str = default_path.to_string_lossy().to_string();
 
     if !default_path.exists() {
@@ -139,7 +139,7 @@ pub async fn create_default_base_folder(db_pool: &sqlx::SqlitePool) -> Result<Al
             .map_err(|e| sqlx::Error::Protocol(format!("Failed to create default workspace: {}", e)))?;
     }
 
-    let folder = AllowedFolder::new(path_str.clone(), "Default Workspace".to_string(), true);
+    let folder = AllowedFolder::new(path_str.clone(), "Default FAE Workspace".to_string(), true);
 
     let is_base = if folder.is_base { 1 } else { 0 };
     sqlx::query(
