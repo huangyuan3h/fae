@@ -2,7 +2,7 @@
 
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Pencil, Plus, Trash2, X, Folder, Settings as SettingsIcon, FolderOpen } from "lucide-react";
+import { Pencil, Plus, Trash2, X, Folder, Settings as SettingsIcon, FolderOpen, Globe, MapPin } from "lucide-react";
 import { AppShell } from "../../components/app-shell";
 import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import { Badge } from "../../components/ui/badge";
@@ -15,8 +15,12 @@ import {
   createDevSession,
   getFolderSettings,
   updateFolderSettings,
+  getSystemSettings,
+  updateSystemSettings,
+  detectLocation,
   type AllowedFolder,
-  type FolderSettings
+  type FolderSettings,
+  type SystemSettings
 } from "../../lib/api";
 import { ensureSessionToken } from "../../lib/session";
 
@@ -24,14 +28,21 @@ const emptyFolderSettings: FolderSettings = {
   folderConfigs: []
 };
 
-type SettingsTab = "providers" | "folders";
+const defaultSystemSettings: SystemSettings = {
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+  location: undefined
+};
+
+type SettingsTab = "providers" | "folders" | "system";
 
 export default function SettingsPage() {
   const [sessionToken, setSessionToken] = useState("");
-  const [activeTab, setActiveTab] = useState<SettingsTab>("folders");
+  const [activeTab, setActiveTab] = useState<SettingsTab>("system");
   const [folderSettings, setFolderSettings] = useState<FolderSettings>(emptyFolderSettings);
+  const [systemSettings, setSystemSettings] = useState<SystemSettings>(defaultSystemSettings);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [detecting, setDetecting] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
@@ -53,18 +64,22 @@ export default function SettingsPage() {
       return;
     }
 
-    loadFolderSettings();
+    loadAllSettings();
   }, [sessionToken]);
 
-  async function loadFolderSettings() {
+  async function loadAllSettings() {
     if (!sessionToken) return;
     
     setLoading(true);
     try {
-      const loaded = await getFolderSettings(sessionToken);
-      setFolderSettings(loaded);
+      const [folders, system] = await Promise.all([
+        getFolderSettings(sessionToken),
+        getSystemSettings(sessionToken)
+      ]);
+      setFolderSettings(folders);
+      setSystemSettings(system);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Failed to load folder settings");
+      setError(loadError instanceof Error ? loadError.message : "Failed to load settings");
     } finally {
       setLoading(false);
     }
@@ -185,10 +200,69 @@ export default function SettingsPage() {
     await saveFolderSettings(nextConfigs);
   }
 
+  async function handleSaveSystemSettings() {
+    if (!sessionToken) return;
+    setSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      const saved = await updateSystemSettings({
+        sessionToken,
+        settings: systemSettings
+      });
+      setSystemSettings(saved);
+      setMessage("System settings saved.");
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Failed to save system settings");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDetectLocation() {
+    if (!sessionToken) return;
+    setDetecting(true);
+    setError("");
+    try {
+      const location = await detectLocation(sessionToken);
+      if (location) {
+        setSystemSettings({
+          timezone: location.timezone,
+          location: {
+            city: location.city,
+            country: location.country,
+            countryCode: location.countryCode,
+            latitude: location.latitude,
+            longitude: location.longitude
+          }
+        });
+        setMessage(`Location detected: ${location.city}, ${location.country}`);
+      } else {
+        setError("Could not detect location. Please enter manually.");
+      }
+    } catch (detectError) {
+      setError(detectError instanceof Error ? detectError.message : "Failed to detect location");
+    } finally {
+      setDetecting(false);
+    }
+  }
+
   return (
     <AppShell active="settings" title="Settings">
       <section className="space-y-4">
         <div className="flex items-center gap-2 border-b border-slate-200">
+          <button
+            type="button"
+            onClick={() => setActiveTab("system")}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
+              activeTab === "system"
+                ? "border-b-2 border-blue-600 text-blue-600"
+                : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            <Globe className="h-4 w-4" />
+            System
+          </button>
           <button
             type="button"
             onClick={() => setActiveTab("folders")}
@@ -214,6 +288,84 @@ export default function SettingsPage() {
             Providers
           </button>
         </div>
+
+        {activeTab === "system" && (
+          <Card>
+            <CardHeader>
+              <CardTitle>System Settings</CardTitle>
+              <CardDescription>
+                Configure timezone and location for the system. These settings help the AI understand context better.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="timezone">Timezone</Label>
+                  <Input
+                    id="timezone"
+                    value={systemSettings.timezone}
+                    onChange={(e) => setSystemSettings({ ...systemSettings, timezone: e.target.value })}
+                    placeholder="e.g., Asia/Shanghai"
+                  />
+                  <p className="text-xs text-slate-500">
+                    Current system timezone: {Intl.DateTimeFormat().resolvedOptions().timeZone}
+                  </p>
+                </div>
+
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Location</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDetectLocation}
+                      disabled={!sessionToken || detecting}
+                    >
+                      {detecting ? <Spinner className="h-4 w-4" /> : <MapPin className="h-4 w-4" />}
+                      {detecting ? "Detecting..." : "Auto Detect"}
+                    </Button>
+                  </div>
+                  
+                  {systemSettings.location ? (
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-slate-500" />
+                        <span className="font-medium">{systemSettings.location.city}, {systemSettings.location.country}</span>
+                      </div>
+                      <div className="text-sm text-slate-500">
+                        {systemSettings.location.latitude?.toFixed(4)}, {systemSettings.location.longitude?.toFixed(4)}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSystemSettings({ ...systemSettings, location: undefined })}
+                      >
+                        Clear location
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-500">
+                      No location set. Click "Auto Detect" to detect your location by IP, or it will be used from system context.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  onClick={handleSaveSystemSettings}
+                  disabled={!sessionToken || saving}
+                >
+                  {saving ? <Spinner className="h-4 w-4" /> : null}
+                  {saving ? "Saving..." : "Save Settings"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {activeTab === "folders" && (
           <>

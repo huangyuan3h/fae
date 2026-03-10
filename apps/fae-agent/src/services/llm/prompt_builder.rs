@@ -1,11 +1,14 @@
 use super::context::AgentContext;
 use super::models::{ToolDefinition, ToolFunction};
+use super::system_context::SystemContext;
 
 pub struct PromptBuilder {
     base_prompt: String,
     include_agent_info: bool,
     include_skill_list: bool,
+    include_system_context: bool,
     custom_instructions: Vec<String>,
+    system_context: Option<SystemContext>,
 }
 
 impl PromptBuilder {
@@ -14,7 +17,9 @@ impl PromptBuilder {
             base_prompt: "You are a helpful assistant.".to_string(),
             include_agent_info: true,
             include_skill_list: true,
+            include_system_context: true,
             custom_instructions: Vec::new(),
+            system_context: None,
         }
     }
 
@@ -33,6 +38,16 @@ impl PromptBuilder {
         self
     }
 
+    pub fn with_system_context(mut self, include: bool) -> Self {
+        self.include_system_context = include;
+        self
+    }
+
+    pub fn set_system_context(mut self, ctx: SystemContext) -> Self {
+        self.system_context = Some(ctx);
+        self
+    }
+
     pub fn add_custom_instruction(mut self, instruction: String) -> Self {
         self.custom_instructions.push(instruction);
         self
@@ -40,6 +55,12 @@ impl PromptBuilder {
 
     pub fn build(&self, context: &AgentContext) -> String {
         let mut parts = Vec::new();
+
+        if self.include_system_context {
+            if let Some(ref sys_ctx) = self.system_context {
+                parts.push(sys_ctx.to_prompt_section());
+            }
+        }
 
         if self.include_agent_info {
             parts.push(self.build_agent_info(context));
@@ -253,5 +274,39 @@ mod tests {
 
         assert_eq!(tools[0].function.description, "Description for skill 1");
         assert_eq!(tools[1].function.description, "Execute the Skill Two skill");
+    }
+
+    #[test]
+    fn test_prompt_builder_with_system_context() {
+        use crate::services::llm::system_context::{LocationContext, SystemContext};
+
+        let context = create_test_context();
+        let sys_ctx = SystemContext::new(
+            "Asia/Shanghai".to_string(),
+            Some(LocationContext {
+                city: "Shanghai".to_string(),
+                country: "China".to_string(),
+                country_code: "CN".to_string(),
+                latitude: Some(31.2304),
+                longitude: Some(121.4737),
+            }),
+        );
+
+        let builder = PromptBuilder::new().set_system_context(sys_ctx);
+        let prompt = builder.build(&context);
+
+        assert!(prompt.contains("Current date and time"));
+        assert!(prompt.contains("User location: Shanghai, China"));
+        assert!(prompt.contains("Timezone: Asia/Shanghai"));
+    }
+
+    #[test]
+    fn test_prompt_builder_without_system_context() {
+        let context = create_test_context();
+        let builder = PromptBuilder::new().with_system_context(false);
+        let prompt = builder.build(&context);
+
+        assert!(!prompt.contains("System Context"));
+        assert!(!prompt.contains("Current date and time"));
     }
 }

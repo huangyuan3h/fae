@@ -156,6 +156,7 @@ pub async fn agent_stream_chat_handler(
     let message = payload.message.clone();
     let db_pool = state.db_pool.clone();
     let llm_log_dir = state.llm_log_dir.clone();
+    let skills_dir = state.skills_dir.clone();
     let session_id = llm::generate_session_id();
     
     info!("[AGENT CHAT] ===== New Request =====");
@@ -218,20 +219,50 @@ pub async fn agent_stream_chat_handler(
 
                 let llm_client = llm::LLMClient::new(base_url.clone(), provider_type.clone(), api_key);
                 
-                let system_prompt = llm::build_system_prompt(&agent.skills);
+                let system_settings = match system_settings_api::get_system_settings(&db_pool).await {
+                    Ok(s) => s,
+                    Err(_) => crate::models::system_settings::SystemSettings::default(),
+                };
+                
+                let system_context = llm::SystemContext::from(system_settings);
+                
+                let mut system_prompt = llm::build_system_prompt(&agent.skills);
+                
+                system_prompt = format!("{}\n\n{}", system_context.to_prompt_section(), system_prompt);
                 
                 let mut all_tools = Vec::new();
                 
-                if !agent.skills.is_empty() {
-                    let mut skill_defs = std::collections::HashMap::new();
-                    skill_defs.insert("file-operation".to_string(), 
-                        "Perform file operations like read, write, list directory".to_string());
-                    skill_defs.insert("example-skill".to_string(), 
-                        "An example demonstration skill".to_string());
-                    all_tools.extend(llm::skills_to_tools(&agent.skills, &skill_defs));
-                }
+                let mut tool_executor = llm::ToolExecutor::with_folder_validation(&db_pool).await;
                 
-                let tool_executor = llm::ToolExecutor::with_folder_validation(&db_pool).await;
+                let agent_skills = agent.skills.clone();
+                let skill_defs: std::collections::HashMap<String, String> = if !agent.skills.is_empty() {
+                    let all_db_skills = match skills::get_all_skills(&db_pool).await {
+                        Ok(s) => s,
+                        Err(e) => {
+                            info!("[SKILLS] Failed to load skills from database: {}", e);
+                            Vec::new()
+                        }
+                    };
+                    
+                    let defs: std::collections::HashMap<String, String> = all_db_skills
+                        .into_iter()
+                        .map(|s| (s.id, s.name))
+                        .collect();
+                    
+                    for skill_id in &agent.skills {
+                        if let Some(desc) = defs.get(skill_id) {
+                            let skill_path = std::path::PathBuf::from(&skills_dir)
+                                .join(skill_id);
+                            tool_executor.register_skill(skill_id.clone(), desc.clone(), skill_path.to_string_lossy().to_string());
+                        }
+                    }
+                    
+                    all_tools.extend(llm::skills_to_tools(&agent.skills, &defs));
+                    defs
+                } else {
+                    std::collections::HashMap::new()
+                };
+                
                 all_tools.extend(tool_executor.get_tool_definitions());
                 
                 let tools = if all_tools.is_empty() {
@@ -320,9 +351,19 @@ pub async fn agent_stream_chat_handler(
                                 "input": serde_json::from_str::<serde_json::Value>(&args).unwrap_or(serde_json::json!({"raw": args}))
                             })).unwrap()));
 
-                            tokio::time::sleep(Duration::from_millis(300)).await;
+tokio::time::sleep(Duration::from_millis(300)).await;
 
-                            let tool_executor = llm::ToolExecutor::with_folder_validation(&db_pool).await;
+                            let mut tool_executor = llm::ToolExecutor::with_folder_validation(&db_pool).await;
+                            
+                            // Register skills for this tool executor
+                            for skill_id in &agent_skills {
+                                if let Some(desc) = skill_defs.get(skill_id) {
+                                    let skill_path = std::path::PathBuf::from(&skills_dir)
+                                        .join(skill_id);
+                                    tool_executor.register_skill(skill_id.clone(), desc.clone(), skill_path.to_string_lossy().to_string());
+                                }
+                            }
+                            
                             let tool_result = match tool_executor.execute_tool_call(tc).await {
                                 llm::ToolResult { success, output, error } => {
                                     if success {
@@ -488,3 +529,4 @@ pub mod providers_api;
 pub mod skills;
 pub mod skills_api;
 pub mod folders_api;
+pub mod system_settings_api;

@@ -84,3 +84,4 @@ pub struct UpdateAgentRequest {
 
 pub mod folders;
 pub mod providers;
+pub mod system_settings;

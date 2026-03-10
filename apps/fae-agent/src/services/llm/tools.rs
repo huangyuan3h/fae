@@ -613,4 +613,92 @@ mod tests {
         assert_eq!(definition.function.name, "bash");
         assert!(definition.function.description.contains("Execute bash commands"));
     }
+
+    #[test]
+    fn test_skill_tool_creation() {
+        let tool = SkillTool::new("weather".to_string(), "Get weather information".to_string(), "/skills/weather".to_string());
+        assert_eq!(tool.name(), "weather");
+        assert!(tool.description().contains("weather"));
+    }
+}
+
+pub struct SkillTool {
+    skill_name: String,
+    skill_description: String,
+    skill_path: String,
+}
+
+impl SkillTool {
+    pub fn new(skill_name: String, skill_description: String, skill_path: String) -> Self {
+        Self {
+            skill_name,
+            skill_description,
+            skill_path,
+        }
+    }
+}
+
+#[async_trait]
+impl Tool for SkillTool {
+    fn name(&self) -> &str {
+        &self.skill_name
+    }
+
+    fn description(&self) -> &str {
+        &self.skill_description
+    }
+
+    fn parameters(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "input": {
+                    "type": "string",
+                    "description": format!("Input for the {} skill", self.skill_name)
+                }
+            },
+            "required": ["input"]
+        })
+    }
+
+    async fn execute(&self, arguments: serde_json::Value) -> ToolResult {
+        let input = arguments["input"]
+            .as_str()
+            .unwrap_or("")
+            .to_string();
+
+        let script_path = Path::new(&self.skill_path);
+        let script_file = if script_path.is_dir() {
+            script_path.join(format!("{}.js", self.skill_name))
+        } else {
+            script_path.to_path_buf()
+        };
+
+        if !script_file.exists() {
+            return ToolResult::error(format!(
+                "Skill script not found: {}",
+                script_file.display()
+            ));
+        }
+
+        let output = tokio::process::Command::new("node")
+            .arg(&script_file)
+            .arg(&input)
+            .output()
+            .await;
+
+        match output {
+            Ok(output) => {
+                let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+                let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+                if output.status.success() {
+                    ToolResult::success(stdout)
+                } else {
+                    ToolResult::error(format!("Skill execution failed: {}", stderr))
+                }
+            }
+            Err(e) => ToolResult::error(format!("Failed to execute skill: {}", e)),
+        }
+    }
 }

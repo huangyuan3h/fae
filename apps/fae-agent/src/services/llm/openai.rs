@@ -102,8 +102,9 @@ impl OpenAIClient {
                                         for choice in openai_resp.choices {
                                             let content = choice.delta.content.clone().unwrap_or_default();
                                             
-                                            let tool_calls: Option<Vec<ToolCall>> = choice.delta.tool_calls.as_ref().map(|tcs| {
-                                                tcs.iter().filter_map(|tc| {
+                                            // Accumulate tool call data
+                                            if let Some(ref tcs) = choice.delta.tool_calls {
+                                                for tc in tcs {
                                                     let index = tc.index;
                                                     let entry = tool_call_buffers.entry(index).or_insert((
                                                         tc.id.clone().unwrap_or_default(),
@@ -122,21 +123,24 @@ impl OpenAIClient {
                                                             entry.2.push_str(args);
                                                         }
                                                     }
-                                                    
-                                                    if !entry.2.is_empty() {
-                                                        Some(ToolCall {
-                                                            id: entry.0.clone(),
-                                                            tool_type: "function".to_string(),
-                                                            function: FunctionCall {
-                                                                name: entry.1.clone(),
-                                                                arguments: entry.2.clone(),
-                                                            },
-                                                        })
-                                                    } else {
-                                                        None
+                                                }
+                                            }
+
+                                            // Only emit tool calls when finish_reason is present
+                                            let tool_calls = if choice.finish_reason.is_some() && !tool_call_buffers.is_empty() {
+                                                Some(tool_call_buffers.values().map(|(id, name, args)| {
+                                                    ToolCall {
+                                                        id: id.clone(),
+                                                        tool_type: "function".to_string(),
+                                                        function: FunctionCall {
+                                                            name: name.clone(),
+                                                            arguments: args.clone(),
+                                                        },
                                                     }
-                                                }).collect()
-                                            });
+                                                }).collect())
+                                            } else {
+                                                None
+                                            };
 
                                             let ollama_resp = OllamaStreamResponse {
                                                 model: model.to_string(),

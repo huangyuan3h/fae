@@ -26,6 +26,7 @@ pub mod agents_api;
 pub struct AppState {
     pub db_pool: Arc<SqlitePool>,
     pub llm_log_dir: String,
+    pub skills_dir: String,
 }
 
 #[tokio::main]
@@ -100,10 +101,11 @@ tracing::info!("Database initialized successfully");
         }
     }
 
-    // Create shared state
+// Create shared state
     let app_state = AppState {
         db_pool: Arc::new(db_pool),
         llm_log_dir: settings.llm_log_dir.clone(),
+        skills_dir: skills_dir.clone(),
     };
     
     let app = api::create_app(app_state);

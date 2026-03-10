@@ -120,6 +120,28 @@ export interface FolderSettings {
   folderConfigs: AllowedFolder[];
 }
 
+export interface LocationInfo {
+  city: string;
+  country: string;
+  countryCode: string;
+  latitude?: number;
+  longitude?: number;
+}
+
+export interface SystemSettings {
+  timezone: string;
+  location?: LocationInfo;
+}
+
+export interface IpLocationResponse {
+  city: string;
+  country: string;
+  countryCode: string;
+  latitude: number;
+  longitude: number;
+  timezone: string;
+}
+
 export type ChatStreamEvent =
   | { type: "chunk"; content: string }
   | { type: "think-start"; id: string }
@@ -509,6 +531,46 @@ export async function updateFolderSettings(params: {
   }
 
   return result.data;
+}
+
+export async function getSystemSettings(sessionToken: string): Promise<SystemSettings> {
+  const result = await requestJson<SystemSettings>(
+    "/api/settings/system",
+    { method: "GET" },
+    sessionToken
+  );
+
+  return result.data ?? { timezone: "UTC", location: undefined };
+}
+
+export async function updateSystemSettings(params: {
+  sessionToken: string;
+  settings: SystemSettings;
+}): Promise<SystemSettings> {
+  const result = await requestJson<SystemSettings>(
+    "/api/settings/system",
+    {
+      method: "PUT",
+      body: JSON.stringify(params.settings)
+    },
+    params.sessionToken
+  );
+
+  if (!result.data) {
+    throw new Error("Failed to save system settings");
+  }
+
+  return result.data;
+}
+
+export async function detectLocation(sessionToken: string): Promise<IpLocationResponse | null> {
+  const result = await requestJson<IpLocationResponse>(
+    "/api/settings/detect-location",
+    { method: "GET" },
+    sessionToken
+  );
+
+  return result.data ?? null;
 }
 
 export async function streamChat(params: {

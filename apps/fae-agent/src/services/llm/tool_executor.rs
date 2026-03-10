@@ -3,7 +3,7 @@ use std::sync::Arc;
 use sqlx::SqlitePool;
 
 use super::models::{ToolCall, ToolDefinition};
-use super::tools::{Tool, ToolResult, BashTool, ReadFileTool, WriteFileTool, ListDirectoryTool};
+use super::tools::{Tool, ToolResult, BashTool, ReadFileTool, WriteFileTool, ListDirectoryTool, SkillTool};
 use super::folder_validator::FolderValidator;
 
 pub struct ToolExecutor {
@@ -47,6 +47,11 @@ impl ToolExecutor {
 
     pub fn register_tool(&mut self, tool: Arc<dyn Tool>) {
         self.tools.insert(tool.name().to_string(), tool);
+    }
+
+    pub fn register_skill(&mut self, skill_name: String, skill_description: String, skill_path: String) {
+        let skill_tool = Arc::new(SkillTool::new(skill_name.clone(), skill_description, skill_path));
+        self.tools.insert(skill_name, skill_tool);
     }
 
     pub fn get_tool(&self, name: &str) -> Option<Arc<dyn Tool>> {
