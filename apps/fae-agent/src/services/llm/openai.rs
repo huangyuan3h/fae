@@ -228,11 +228,11 @@ mod tests {
     fn test_openai_request_with_tools() {
         let tools = vec![ToolDefinition {
             tool_type: "function".to_string(),
-            function: ToolFunction {
+            function: Some(ToolFunction {
                 name: "search".to_string(),
                 description: "Search".to_string(),
                 parameters: serde_json::json!({"type": "object"}),
-            },
+            }),
         }];
         
         let request = OpenAIRequest {

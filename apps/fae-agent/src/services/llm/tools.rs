@@ -39,11 +39,11 @@ pub trait Tool: Send + Sync {
     fn to_tool_definition(&self) -> ToolDefinition {
         ToolDefinition {
             tool_type: "function".to_string(),
-            function: ToolFunction {
+            function: Some(ToolFunction {
                 name: self.name().to_string(),
                 description: self.description().to_string(),
                 parameters: self.parameters(),
-            },
+            }),
         }
     }
 }
@@ -610,8 +610,9 @@ mod tests {
         let definition = tool.to_tool_definition();
 
         assert_eq!(definition.tool_type, "function");
-        assert_eq!(definition.function.name, "bash");
-        assert!(definition.function.description.contains("Execute bash commands"));
+        let func = definition.function.as_ref().unwrap();
+        assert_eq!(func.name, "bash");
+        assert!(func.description.contains("Execute bash commands"));
     }
 
     #[test]

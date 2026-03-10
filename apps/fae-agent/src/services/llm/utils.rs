@@ -16,7 +16,7 @@ pub fn skills_to_tools(
 
             Some(ToolDefinition {
                 tool_type: "function".to_string(),
-                function: ToolFunction {
+                function: Some(ToolFunction {
                     name: skill_name.clone(),
                     description,
                     parameters: serde_json::json!({
@@ -29,7 +29,7 @@ pub fn skills_to_tools(
                         },
                         "required": ["input"]
                     }),
-                },
+                }),
             })
         })
         .collect()
@@ -69,8 +69,11 @@ mod tests {
 
         let tools = skills_to_tools(&skills, &definitions);
         assert_eq!(tools.len(), 1);
-        assert_eq!(tools[0].function.name, "search");
-        assert_eq!(tools[0].function.description, "Search the web");
+        assert_eq!(tools[0].function.as_ref().unwrap().name, "search");
+        assert_eq!(
+            tools[0].function.as_ref().unwrap().description,
+            "Search the web"
+        );
     }
 
     #[test]
@@ -91,7 +94,10 @@ mod tests {
 
         let tools = skills_to_tools(&skills, &definitions);
         assert_eq!(tools.len(), 1);
-        assert_eq!(tools[0].function.description, "Execute the unknown skill");
+        assert_eq!(
+            tools[0].function.as_ref().unwrap().description,
+            "Execute the unknown skill"
+        );
     }
 
     #[test]
@@ -115,7 +121,7 @@ mod tests {
         let definitions = HashMap::new();
         let tools = skills_to_tools(&skills, &definitions);
 
-        let params = &tools[0].function.parameters;
+        let params = &tools[0].function.as_ref().unwrap().parameters;
         assert_eq!(params["type"], "object");
         assert!(params["properties"]["input"]["type"].is_string());
         assert!(params["required"].is_array());

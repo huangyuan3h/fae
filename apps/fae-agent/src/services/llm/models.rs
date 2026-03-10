@@ -27,7 +27,28 @@ pub struct FunctionCall {
 pub struct ToolDefinition {
     #[serde(rename = "type")]
     pub tool_type: String,
-    pub function: ToolFunction,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub function: Option<ToolFunction>,
+}
+
+impl ToolDefinition {
+    pub fn function_tool(name: String, description: String, parameters: serde_json::Value) -> Self {
+        Self {
+            tool_type: "function".to_string(),
+            function: Some(ToolFunction {
+                name,
+                description,
+                parameters,
+            }),
+        }
+    }
+
+    pub fn builtin_tool(tool_type: &str) -> Self {
+        Self {
+            tool_type: tool_type.to_string(),
+            function: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -149,7 +170,7 @@ mod tests {
     fn test_tool_definition() {
         let tool = ToolDefinition {
             tool_type: "function".to_string(),
-            function: ToolFunction {
+            function: Some(ToolFunction {
                 name: "get_weather".to_string(),
                 description: "Get weather info".to_string(),
                 parameters: serde_json::json!({
@@ -158,12 +179,36 @@ mod tests {
                         "location": {"type": "string"}
                     }
                 }),
-            },
+            }),
         };
 
         let json = serde_json::to_string(&tool).unwrap();
         assert!(json.contains("\"type\":\"function\""));
         assert!(json.contains("\"name\":\"get_weather\""));
+    }
+
+    #[test]
+    fn test_builtin_tool_definition() {
+        let tool = ToolDefinition::builtin_tool("web_search_preview");
+
+        let json = serde_json::to_string(&tool).unwrap();
+        assert_eq!(json, r#"{"type":"web_search_preview"}"#);
+        assert!(!json.contains("function"));
+    }
+
+    #[test]
+    fn test_function_tool_helper() {
+        let tool = ToolDefinition::function_tool(
+            "search".to_string(),
+            "Search the web".to_string(),
+            serde_json::json!({"type": "object"}),
+        );
+
+        assert_eq!(tool.tool_type, "function");
+        assert!(tool.function.is_some());
+        let func = tool.function.as_ref().unwrap();
+        assert_eq!(func.name, "search");
+        assert_eq!(func.description, "Search the web");
     }
 
     #[test]

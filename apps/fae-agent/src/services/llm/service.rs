@@ -227,10 +227,10 @@ mod tests {
         assert!(tools.is_some());
         let tools = tools.unwrap();
         assert!(!tools.is_empty());
-        assert!(tools.iter().any(|t| t.function.name == "bash"));
-        assert!(tools.iter().any(|t| t.function.name == "read_file"));
-        assert!(tools.iter().any(|t| t.function.name == "write_file"));
-        assert!(tools.iter().any(|t| t.function.name == "list_directory"));
+        assert!(tools.iter().any(|t| t.function.as_ref().map(|f| f.name.as_str()) == Some("bash")));
+        assert!(tools.iter().any(|t| t.function.as_ref().map(|f| f.name.as_str()) == Some("read_file")));
+        assert!(tools.iter().any(|t| t.function.as_ref().map(|f| f.name.as_str()) == Some("write_file")));
+        assert!(tools.iter().any(|t| t.function.as_ref().map(|f| f.name.as_str()) == Some("list_directory")));
     }
 
     #[test]

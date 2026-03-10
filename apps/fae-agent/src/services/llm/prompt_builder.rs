@@ -123,7 +123,7 @@ impl PromptBuilder {
             .into_iter()
             .map(|skill| ToolDefinition {
                 tool_type: "function".to_string(),
-                function: ToolFunction {
+                function: Some(ToolFunction {
                     name: skill.id.clone(),
                     description: if skill.description.is_empty() {
                         format!("Execute the {} skill", skill.name)
@@ -140,7 +140,7 @@ impl PromptBuilder {
                         },
                         "required": ["input"]
                     }),
-                },
+                }),
             })
             .collect()
     }
@@ -227,8 +227,8 @@ mod tests {
         let tools = builder.build_tools(&context);
 
         assert_eq!(tools.len(), 2);
-        assert_eq!(tools[0].function.name, "search");
-        assert_eq!(tools[1].function.name, "calculate");
+        assert_eq!(tools[0].function.as_ref().unwrap().name, "search");
+        assert_eq!(tools[1].function.as_ref().unwrap().name, "calculate");
     }
 
     #[test]
@@ -272,8 +272,14 @@ mod tests {
         let builder = PromptBuilder::new();
         let tools = builder.build_tools(&context);
 
-        assert_eq!(tools[0].function.description, "Description for skill 1");
-        assert_eq!(tools[1].function.description, "Execute the Skill Two skill");
+        assert_eq!(
+            tools[0].function.as_ref().unwrap().description,
+            "Description for skill 1"
+        );
+        assert_eq!(
+            tools[1].function.as_ref().unwrap().description,
+            "Execute the Skill Two skill"
+        );
     }
 
     #[test]

@@ -201,7 +201,9 @@ mod tests {
         
         assert_eq!(definitions.len(), 4);
         
-        let bash_def = definitions.iter().find(|d| d.function.name == "bash");
+        let bash_def = definitions.iter().find(|d| {
+            d.function.as_ref().map(|f| f.name.as_str()) == Some("bash")
+        });
         assert!(bash_def.is_some());
         assert_eq!(bash_def.unwrap().tool_type, "function");
     }
