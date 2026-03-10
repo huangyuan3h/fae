@@ -681,24 +681,51 @@ impl Tool for SkillTool {
             ));
         }
 
-        let output = tokio::process::Command::new("node")
-            .arg(&script_file)
-            .arg(&input)
-            .output()
-            .await;
+        const MAX_RETRIES: u32 = 3;
+        let mut last_error = String::new();
 
-        match output {
-            Ok(output) => {
-                let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-                let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        for attempt in 1..=MAX_RETRIES {
+            let output = tokio::process::Command::new("node")
+                .arg(&script_file)
+                .arg(&input)
+                .output()
+                .await;
 
-                if output.status.success() {
-                    ToolResult::success(stdout)
-                } else {
-                    ToolResult::error(format!("Skill execution failed: {}", stderr))
+            match output {
+                Ok(output) => {
+                    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+                    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+                    if output.status.success() {
+                        return ToolResult::success(stdout);
+                    } else {
+                        last_error = format!("Skill execution failed: {}", stderr);
+                        if attempt < MAX_RETRIES {
+                            tracing::warn!(
+                                skill = %self.skill_name,
+                                attempt = attempt,
+                                "Skill execution failed, retrying..."
+                            );
+                        }
+                    }
+                }
+                Err(e) => {
+                    last_error = format!("Failed to execute skill: {}", e);
+                    if attempt < MAX_RETRIES {
+                        tracing::warn!(
+                            skill = %self.skill_name,
+                            attempt = attempt,
+                            error = %e,
+                            "Skill execution error, retrying..."
+                        );
+                    }
                 }
             }
-            Err(e) => ToolResult::error(format!("Failed to execute skill: {}", e)),
         }
+
+        ToolResult::error(format!(
+            "Skill execution failed after {} attempts. Last error: {}",
+            MAX_RETRIES, last_error
+        ))
     }
 }

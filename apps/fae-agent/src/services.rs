@@ -183,7 +183,6 @@ pub async fn agent_stream_chat_handler(
                 
                 if let Some(ref logger) = logger {
                     logger.log_session_start();
-                    logger.log_user_message(&message);
                 }
                 
                 let provider_config = if let Some(ref config_id) = agent.provider_config_id {
@@ -276,6 +275,7 @@ pub async fn agent_stream_chat_handler(
                 
                 if let Some(ref logger) = logger {
                     logger.log_system_prompt(&system_prompt);
+                    logger.log_user_message(&message);
                     logger.log_llm_request(&provider_type, &model, &base_url, 2, tools.as_ref().map(|t| t.len()));
                 }
 
