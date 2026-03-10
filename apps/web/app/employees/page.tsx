@@ -384,15 +384,29 @@ export default function EmployeesPage() {
                     {agent.system_prompt || "(no prompt)"}
                   </p>
                   <div className="mt-3 flex flex-wrap gap-1">
-                    {(agent.skills ?? []).length === 0 ? (
-                      <Badge variant="secondary">No skills</Badge>
-                    ) : (
-                      (agent.skills ?? []).map((skillId) => (
-                        <Badge key={skillId} variant="secondary">
-                          {skillId}
-                        </Badge>
-                      ))
-                    )}
+                    {(() => {
+                      const agentSkills = agent.skills ?? [];
+                      const validSkills = agentSkills.filter((skillId) =>
+                        skills.some((s) => s.id === skillId)
+                      );
+                      
+                      if (validSkills.length === 0) {
+                        return <Badge variant="secondary">No skills</Badge>;
+                      }
+                      
+                      return (
+                        <>
+                          {validSkills.map((skillId) => {
+                            const skill = skills.find((s) => s.id === skillId);
+                            return (
+                              <Badge key={skillId} variant="secondary">
+                                {skill?.name ?? skillId}
+                              </Badge>
+                            );
+                          })}
+                        </>
+                      );
+                    })()}
                   </div>
                 </CardContent>
               </Card>

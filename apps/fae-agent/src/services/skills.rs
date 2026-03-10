@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use sqlx::SqlitePool;
+use sqlx::{Row, SqlitePool};
 use std::path::Path;
 use std::fs;
 use tracing::info;
@@ -135,13 +135,13 @@ pub async fn load_skills_from_directory(
                     "INSERT OR REPLACE INTO skills (id, name, enabled) VALUES (?1, ?2, COALESCE((SELECT enabled FROM skills WHERE id = ?1), 1))"
                 )
                 .bind(&skill_name)
-                .bind(&skill_description)
+                .bind(&skill_name)
                 .execute(db_pool)
                 .await?;
                 
                 let skill = Skill {
-                    id: skill_name,
-                    name: skill_description,
+                    id: skill_name.clone(),
+                    name: skill_name,
                     enabled: 1, // Default to enabled
                 };
                 
@@ -172,6 +172,9 @@ pub async fn load_skills_from_directory(
             .execute(db_pool)
             .await?;
         info!("Deleted skill '{}' as it no longer exists in {}", skill_id, skills_dir);
+        
+        // Remove this skill from all agents' skills_json
+        remove_skill_from_all_agents(db_pool, skill_id).await?;
     }
     
     info!("Scanned {} and found {} skills from directory", skills_dir, loaded_skills.len());
@@ -217,4 +220,39 @@ pub async fn refresh_skills_from_directory(
     db_pool: &SqlitePool,
 ) -> Result<Vec<Skill>, Box<dyn std::error::Error>> {
     load_skills_from_directory(skills_dir, db_pool).await
+}
+
+async fn remove_skill_from_all_agents(
+    db_pool: &SqlitePool,
+    skill_id: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let rows = sqlx::query("SELECT id, skills_json FROM agents")
+        .fetch_all(db_pool)
+        .await?;
+    
+    for row in rows {
+        let agent_id: String = row.get("id");
+        let skills_json: String = row.get("skills_json");
+        
+        if let Ok(mut skills) = serde_json::from_str::<Vec<String>>(&skills_json) {
+            let original_len = skills.len();
+            skills.retain(|s| s != skill_id);
+            
+            if skills.len() != original_len {
+                let updated_skills_json = serde_json::to_string(&skills)?;
+                let now = chrono::Utc::now().timestamp();
+                
+                sqlx::query("UPDATE agents SET skills_json = ?, updated_at = ? WHERE id = ?")
+                    .bind(&updated_skills_json)
+                    .bind(now)
+                    .bind(&agent_id)
+                    .execute(db_pool)
+                    .await?;
+                
+                info!("Removed skill '{}' from agent '{}'", skill_id, agent_id);
+            }
+        }
+    }
+    
+    Ok(())
 }
